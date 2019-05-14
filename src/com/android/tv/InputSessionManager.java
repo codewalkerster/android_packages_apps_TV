@@ -565,6 +565,11 @@ public class InputSessionManager {
         public void onTimeShiftStatusChanged(String inputId, int status) {
             mDelegate.onTimeShiftStatusChanged(inputId, status);
         }
+
+        @Override
+        public void onEvent(String inputId, String eventType, Bundle eventArgs) {
+            mDelegate.onEvent(inputId, eventType, eventArgs);
+        }
     }
 
     /** Called when the {@link TvView} channel is changed. */

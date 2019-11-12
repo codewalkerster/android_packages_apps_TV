@@ -693,6 +693,9 @@
     <string name="dvr_action_error_storage_settings" translatable="false">Open storage settings</string>
     <!-- The action to stop recording. [CHAR LIMIT=10] -->
     <string name="dvr_action_stop">Stop</string>
+    <string name="dvr_action_continue_record">Continue record &amp; Switch</string>
+    <string name="dvr_action_stop_save">Stop &amp; Save</string>
+    <string name="dvr_action_cancel_delete">Cancel &amp; Delete</string>
     <!-- The action to open the activity which shows all the schedules.[CHAR LIMIT=32] -->
     <string name="dvr_action_view_schedules">View recording schedule</string>
     <!-- The action to make the recording schedule for only this program(episode).
@@ -995,6 +998,7 @@
     <string name="channel_info_channel">channel</string>
     <string name="channel_info_frequency">frequency</string>
     <string name="channel_info_strength">strength</string>
+    <string name="channel_info_quality">quality</string>
     <string name="channel_info_type">type</string>
     <string name="channel_info_service_id">service ID</string>
     <string name="channel_info_pcr_id">Pcr ID</string>
@@ -1162,6 +1166,7 @@
     <string name="subtitle_teletext_timer">Timer</string>
     <string name="subtitle_country_english">English</string>
     <string name="subtitle_country_deutsch">Deutsch</string>
+    <string name="subtitle_country_hebrew">Hebrew</string>
     <string name="subtitle_country_svenska">Svenska/Suomi/Magyar</string>
     <string name="subtitle_country_italiano">Italiano</string>
     <string name="subtitle_country_france">Français</string>
@@ -1194,4 +1199,21 @@
     <string name="invalid_channel_number">Invalid channel number, please type a number between 1 and 135</string>
     <string name="invalid_atsct_channel_number">Invalid atsc-t channel number, please type a number between 2 and 69</string>
     <string name="bad_channel_number">"Channel number hasn't typed compeltely"</string>
+
+    <!-- pvr -->
+    <string name="pvr_appoint_confirm_title"><xliff:g id="program_name" example="test">%1$s</xliff:g> will be record after <xliff:g id="rest_time" example="10">%2$d</xliff:g> seconds !</string>
+    <string name="pvr_appoint_confirm_title_stop_first_started"> while <xliff:g id="program_name" example="test">%1$s</xliff:g> will be stopped to release tuner !</string>
+    <string name="pvr_appoint_confirm_title_stop_other_frequency"> while Records of diffrent frequency will be stopped !</string>
+    <string name="pvr_appoint_confirm_record">Background Record</string>
+    <string name="pvr_appoint_confirm_switch">Play &amp; Record</string>
+    <string name="pvr_appoint_confirm_cancel">Cancel Record</string>
+    <string name="pvr_appoint_confirm_wait_play">Wait Record will be timeout after <xliff:g id="rest_time" example="10">%1$d</xliff:g> seconds !</string>
+    <string name="pvr_appoint_confirm_wait_play_timeout">play video not available and schedule will be canceled !</string>
+    <string name="pvr_timeshift_unavailable">Timeshift unavailable and media key can not be responsed !</string>
+    <string name="pvr_diffrent_frequency_tips">Next channel has a diffrent frequency and current record need to be stop or cancel firstly!</string>
+    <string name="pvr_too_many_sessions_tips">Total number of record sessions is too much and current record need to be stop or cancel firstly!</string>
+    <string name="pvr_confirm_stop_in_progress_schedule">Please select a in progress schedule to stop</string>
+    <string name="pvr_confirm_stop_in_progress_schedule_stop_all">Stop All</string>
+    <string name="dvr_program_duration_total"><xliff:g id="hour" example="10">%1$02d</xliff:g>:<xliff:g id="minute" example="10">%2$02d</xliff:g>:<xliff:g id="hour" example="10">%3$02d</xliff:g></string>
+    <string name="pvr_confirm_tuning_diffrent_frequency">Current schedule needs to switch to current program firstly as frequency changes !</string>
 </resources>

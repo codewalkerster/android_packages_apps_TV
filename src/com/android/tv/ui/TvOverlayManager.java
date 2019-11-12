@@ -33,6 +33,8 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityManager.AccessibilityStateChangeListener;
+import android.widget.Toast;
+
 import com.android.tv.ChannelTuner;
 import com.android.tv.MainActivity;
 import com.android.tv.MainActivity.KeyHandlerResultType;
@@ -68,6 +70,9 @@ import com.android.tv.ui.TvTransitionManager.SceneType;
 import com.android.tv.ui.sidepanel.SideFragmentManager;
 import com.android.tv.ui.sidepanel.parentalcontrols.RatingsFragment;
 import com.android.tv.util.TvInputManagerHelper;
+import com.android.tv.dvr.DvrManager;
+import com.android.tv.dvr.ui.DvrUiHelper;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -1081,14 +1086,23 @@ public class TvOverlayManager implements AccessibilityStateChangeListener {
             }
             TimeShiftManager timeShiftManager = mMainActivity.getTimeShiftManager();
             if (!timeShiftManager.isAvailable()) {
+                Toast.makeText(mMainActivity, R.string.pvr_timeshift_unavailable,Toast.LENGTH_SHORT)
+                        .show();
                 return MainActivity.KEY_EVENT_HANDLER_RESULT_HANDLED;
             }
+            TvSingletons singletons = TvSingletons.getSingletons(mMainActivity);
+            DvrManager dvrmanager = singletons.getDvrManager();
             switch (keyCode) {
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
                     timeShiftManager.play();
                     showMenu(Menu.REASON_PLAY_CONTROLS_PLAY);
                     break;
                 case KeyEvent.KEYCODE_MEDIA_STOP:
+                    //add process to deal current inprogressing records
+                    if (dvrmanager != null && dvrmanager.hasInProgressScheduleRecordingAvailable()) {
+                        DvrUiHelper.showInprogressScheduleConfirmDialog(mMainActivity);
+                    }
+                    break;
                 case KeyEvent.KEYCODE_MEDIA_PAUSE:
                     timeShiftManager.pause();
                     showMenu(Menu.REASON_PLAY_CONTROLS_PAUSE);

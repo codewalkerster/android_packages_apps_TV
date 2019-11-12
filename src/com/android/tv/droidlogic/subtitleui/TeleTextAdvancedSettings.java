@@ -31,6 +31,7 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.media.tv.TvView;
 
 import com.android.tv.data.api.Channel;
 import com.android.tv.MainActivity;
@@ -81,11 +82,21 @@ public class TeleTextAdvancedSettings {
             "back_page", "forward_page", "double_scroll_up", "double_scroll_down"//4
     };
 
-    private final MainActivity mMainActivity;
+    private Context mContext;
+    private TvView mTvView;
     private AlertDialog mAlertDialog;
 
-    public TeleTextAdvancedSettings(MainActivity mainActivity) {
-        mMainActivity = mainActivity;
+    public TeleTextAdvancedSettings(Context context, TvView tvview) {
+        this.mContext = context;
+        this.mTvView = tvview;
+    }
+
+    public void setTvView(TvView tvview) {
+        mTvView = tvview;
+    }
+
+    public TvView getTvView() {
+        return mTvView;
     }
 
     private int getIndexByResId(int res) {
@@ -121,7 +132,7 @@ public class TeleTextAdvancedSettings {
                 return false;
             }
         };
-        AlertDialog.Builder builder = new AlertDialog.Builder(mMainActivity).setOnKeyListener(OnKeyListener);
+        AlertDialog.Builder builder = new AlertDialog.Builder(mContext).setOnKeyListener(OnKeyListener);
         mAlertDialog = builder.create();
         final Button.OnClickListener OnClickListener = new Button.OnClickListener() {
             @Override
@@ -130,13 +141,13 @@ public class TeleTextAdvancedSettings {
                 if (index >= 0) {
                     Bundle bundle = new Bundle();
                     bundle.putBoolean(ADVANCED_OPTION_ACTION[index],true);
-                    if (mMainActivity != null) {
+                    if (mTvView != null) {
                         sendCommandByTif(ADVANCED_OPTION_ACTION[index], bundle);
                     }
                 }
             }
         };
-        final View dialogView = (View)View.inflate(mMainActivity, R.layout.advanced_teletext_function, null);
+        final View dialogView = (View)View.inflate(mContext, R.layout.advanced_teletext_function, null);
         for (int i = 0; i < BUTTON_RES.length; i++) {
             dialogView.findViewById(BUTTON_RES[i]).setOnClickListener(OnClickListener);
         }
@@ -150,9 +161,9 @@ public class TeleTextAdvancedSettings {
         mAlertDialog.setView(dialogView);
         mAlertDialog.show();
         mAlertDialog.getWindow().setGravity(Gravity.RIGHT | Gravity.BOTTOM);
-        mAlertDialog.getWindow().setBackgroundDrawable(mMainActivity.getDrawable(R.drawable.button_frame)/*new ColorDrawable(0)*/);
+        mAlertDialog.getWindow().setBackgroundDrawable(mContext.getDrawable(R.drawable.button_frame)/*new ColorDrawable(0)*/);
         WindowManager.LayoutParams lp = mAlertDialog.getWindow().getAttributes();
-        lp.width = (int)mMainActivity.getResources().getDimension(R.dimen.teletext_advanced_ui_width);
+        lp.width = (int)mContext.getResources().getDimension(R.dimen.teletext_advanced_ui_width);
         //lp.width = WindowManager.LayoutParams.WRAP_CONTENT;;
         //lp.height = WindowManager.LayoutParams.WRAP_CONTENT;;
         mAlertDialog.getWindow().setAttributes(lp);
@@ -197,15 +208,15 @@ public class TeleTextAdvancedSettings {
         if (key != null) {
             Bundle bundle = new Bundle();
             bundle.putBoolean(key,true);
-            if (mMainActivity != null) {
-                mMainActivity.getTvView().sendAppPrivateCommand(key, bundle);
+            if (mTvView != null) {
+                mTvView.sendAppPrivateCommand(key, bundle);
             }
         }
     }
 
     public void sendCommandByTif(String action, Bundle bundle) {
-        if (mMainActivity != null) {
-            mMainActivity.getTvView().sendAppPrivateCommand(action, bundle);
+        if (mTvView != null) {
+            mTvView.sendAppPrivateCommand(action, bundle);
         }
     }
 }

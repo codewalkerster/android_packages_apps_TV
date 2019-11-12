@@ -26,6 +26,7 @@ import android.media.tv.TvTrackInfo;
 import android.media.tv.TvView;
 import android.media.tv.TvView.TvInputCallback;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -206,7 +207,7 @@ public class InputSessionManager {
         return false;
     }
 
-    int getTunedRecordingSessionCount(String inputId) {
+    public int getTunedRecordingSessionCount(String inputId) {
         synchronized (mRecordingSessions) {
             int tunedCount = 0;
             for (RecordingSession session : mRecordingSessions) {
@@ -218,7 +219,7 @@ public class InputSessionManager {
         }
     }
 
-    boolean isTunedForRecording(Uri channelUri) {
+    public boolean isTunedForRecording(Uri channelUri) {
         synchronized (mRecordingSessions) {
             for (RecordingSession session : mRecordingSessions) {
                 if (session.mTuned && Objects.equals(channelUri, session.mChannelUri)) {
@@ -332,6 +333,8 @@ public class InputSessionManager {
             }
             mTuned = true;
             mNeedToBeRetuned = false;
+            float Time= (float) SystemClock.uptimeMillis() / 1000;
+            Log.d(TAG, "will createSession or tune SwitchSourceTime = " + Time);
             mTvView.tune(mInputId, mChannelUri, params);
             notifyTvViewChannelChange(mChannelUri);
         }

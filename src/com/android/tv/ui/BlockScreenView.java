@@ -35,6 +35,7 @@ import com.android.tv.ui.TunableTvView.BlockScreenType;
 public class BlockScreenView extends FrameLayout {
     private View mContainerView;
     private View mImageContainer;
+    private View mMessageContainer;
     private ImageView mNormalLockIconView;
     private ImageView mShrunkenLockIconView;
     private View mSpace;
@@ -85,6 +86,7 @@ public class BlockScreenView extends FrameLayout {
                 AnimatorInflater.loadAnimator(
                         getContext(), R.animator.tvview_block_screen_fade_out);
         //add view to show nodatabase begain
+        mMessageContainer = findViewById(R.id.msg_display_container);
         mNoDataBaseImageView = (ImageView) findViewById(R.id.msg_image);
         mNoDataBaseTextView = (TextView) findViewById(R.id.msg_text);
         //add view to show nodatabase end
@@ -154,6 +156,7 @@ public class BlockScreenView extends FrameLayout {
     }
 
     public void setNoChannelHint() {
+        mMessageContainer.setVisibility(VISIBLE);
         mNoDataBaseImageView.setVisibility(VISIBLE);
         mNoDataBaseTextView.setVisibility(VISIBLE);
         mContainerView.setVisibility(GONE);
@@ -162,6 +165,7 @@ public class BlockScreenView extends FrameLayout {
     }
 
     public void hideNoChannelTint() {
+        mMessageContainer.setVisibility(GONE);
         mNoDataBaseTextView.setVisibility(GONE);
         mNoDataBaseImageView.setVisibility(GONE);
         mContainerView.setVisibility(INVISIBLE);

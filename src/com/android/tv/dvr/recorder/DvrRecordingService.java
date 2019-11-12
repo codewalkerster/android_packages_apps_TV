@@ -128,7 +128,7 @@ public class DvrRecordingService extends Service {
                 new RecurringRunner(
                         this,
                         java.util.concurrent.TimeUnit.DAYS.toMillis(1),
-                        new ScheduledProgramReaper(dataManager, Clock.SYSTEM),
+                        new ScheduledProgramReaper(dataManager, singletons.getTvClock()/*Clock.SYSTEM*/),
                         null);
         mReaperRunner.start();
         mContentTitle = getString(R.string.dvr_notification_content_title);

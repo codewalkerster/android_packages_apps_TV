@@ -28,6 +28,8 @@ LOCAL_SRC_FILES := $(call all-java-files-under, src)
 LOCAL_JAVA_LIBRARIES := droidlogic droidlogic-tv
 LOCAL_PACKAGE_NAME := LiveTv
 
+LOCAL_CERTIFICATE := platform
+
 # It is required for com.android.providers.tv.permission.ALL_EPG_DATA
 LOCAL_PRIVILEGED_MODULE := true
 

@@ -151,17 +151,20 @@ public class ChannelModifyFragment extends SideFragment {
                 } else if (optionListData.get(i).isFavourite()) {
                     info = getString(R.string.channel_edit_favourite);
                 }
-                if (mDebug) Log.d(TAG, "[getItemList] optionListData.get(i).isBrowsable() = " + optionListData.get(i).isBrowsable() +
-                    ", optionListData.get(i).isFavourite() = " + optionListData.get(i).isFavourite() + ", info = " + info);
                 String displaynumber = optionListData.get(i).getDisplayNumber();
                 String displayname = optionListData.get(i).getDisplayName();
                 String localdisplay = optionListData.get(i).getDisplayNameLocal();
+                String multiname = optionListData.get(i).getDisplayNameMulti();
+                final String channelType = optionListData.get(i).getType();
+                if (mDebug) Log.d(TAG, "[getItemList] optionListData.get(i).isBrowsable() = " + optionListData.get(i).isBrowsable() +
+                    ", optionListData.get(i).isFavourite() = " + optionListData.get(i).isFavourite() + ", info = " + info +
+                    ", displaynumber = " + displaynumber + ", displayname = " + displayname + ", localdisplay = " + localdisplay + ", multiname = " + multiname);
                 DynamicSubMenuItem item = new DynamicSubMenuItem(displaynumber + "." +
-                        (localdisplay != null ? localdisplay : displayname),
+                        (/*localdisplay != null ? localdisplay : */displayname),
                 info, optionListData.get(i).getId(), getMainActivity().getOverlayManager().getSideFragmentManager()) {
                     @Override
                     protected SideFragment getFragment() {
-                        SideFragment fragment = new ChannelModifyDetailsFragment();
+                        SideFragment fragment = new ChannelModifyDetailsFragment(channelType);
                         fragment.setListener(mSideFragmentListener);
                         return fragment;
                     }

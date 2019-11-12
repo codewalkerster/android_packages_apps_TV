@@ -68,8 +68,8 @@ public class TeleTextSettingFragment extends SideFragment {
     private static final int[] COUNTRY_LIST_RES =  {R.string.subtitle_country_english, R.string.subtitle_country_deutsch, R.string.subtitle_country_svenska,
                                                                        R.string.subtitle_country_italiano, R.string.subtitle_country_france, R.string.subtitle_country_portugal,
                                                                        R.string.subtitle_country_cesky, R.string.subtitle_country_turkey, R.string.subtitle_country_ellinika,
-                                                                       R.string.subtitle_country_alarabia, R.string.subtitle_country_russky};
-    private static final int[] REGION_ID_MAPS = {16, 17, 18, 19, 20, 21, 14, 22, 55 , 64, 36};
+                                                                       R.string.subtitle_country_alarabia, R.string.subtitle_country_russky, R.string.subtitle_country_hebrew};
+    private static final int[] REGION_ID_MAPS = {16, 17, 18, 19, 20, 21, 14, 22, 55 , 64, 36, 80};
 
     public TeleTextSettingFragment() {
         super(KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_S);

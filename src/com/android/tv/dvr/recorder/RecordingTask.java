@@ -31,6 +31,9 @@ import android.support.annotation.VisibleForTesting;
 import android.support.annotation.WorkerThread;
 import android.util.Log;
 import android.widget.Toast;
+import android.content.ContentValues;
+import android.os.Bundle;
+
 import com.android.tv.InputSessionManager;
 import com.android.tv.InputSessionManager.RecordingSession;
 import com.android.tv.R;
@@ -44,6 +47,8 @@ import com.android.tv.dvr.WritableDvrDataManager;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.recorder.InputTaskScheduler.HandlerWrapper;
 import com.android.tv.util.Utils;
+import com.android.tv.ui.TunableTvView;
+
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 
@@ -298,6 +303,22 @@ public class RecordingTask extends RecordingCallback
         failAndQuit(error);
     }
 
+    @Override
+    public void onEvent(String inputId, String eventType, Bundle eventArgs) {
+        Log.d(TAG,"onEvent: id = " + inputId + ", eventType = "+eventType + ", eventArgs = " + eventArgs);
+        if (eventType.equals(TunableTvView.EVENT_RESOURCE_BUSY)) {
+            if (eventArgs != null) {
+                String info = eventArgs.getString(TunableTvView.KEY_INFO, null);
+                if (DEBUG) {
+                    Log.d(TAG, "EVENT_RESOURCE_BUSY info = " + info);
+                }
+                if (info != null) {
+                    Toast.makeText(mContext.getApplicationContext(), info, Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
+    }
+
     private void handleInit() {
         if (DEBUG) Log.d(TAG, "handleInit " + mScheduledRecording);
         if (mScheduledRecording.getEndTimeMs() < mClock.currentTimeMillis()) {
@@ -370,6 +391,9 @@ public class RecordingTask extends RecordingCallback
             mStartedWithClipping = true;
         }
         mState = State.RECORDING_STARTED;
+        if (programId != ScheduledRecording.ID_NOT_SET) {
+            updateProgramRecordStatusToDb(programId, com.droidlogic.app.tv.Program.RECORD_STATUS_IN_PROGRESS);
+        }
 
         if (!sendEmptyMessageAtAbsoluteTime(
                 MSG_STOP_RECORDING, mScheduledRecording.getEndTimeMs())) {
@@ -379,8 +403,12 @@ public class RecordingTask extends RecordingCallback
 
     private void handleStopRecording() {
         Log.i(TAG, "Stop Recording: " + mScheduledRecording);
+        long programId = mScheduledRecording.getProgramId();
         mRecordingSession.stopRecording();
         mState = State.RECORDING_STOP_REQUESTED;
+        if (programId != ScheduledRecording.ID_NOT_SET) {
+            updateProgramRecordStatusToDb(programId, com.droidlogic.app.tv.Program.RECORD_STATUS_NOT_STARTED);
+        }
     }
 
     private void handleUpdateSchedule(ScheduledRecording schedule) {
@@ -573,6 +601,19 @@ public class RecordingTask extends RecordingCallback
             runnable.run();
         } else {
             mMainThreadHandler.post(runnable);
+        }
+    }
+
+    public void updateProgramRecordStatusToDb(long programid, int status) {
+        if (programid != -1) {
+            try {
+                ContentValues values = new ContentValues();
+                values.put(TvContract.Programs.COLUMN_INTERNAL_PROVIDER_FLAG4, status);
+                mContext.getContentResolver().update(TvContract.buildProgramUri(programid), values, null, null);
+                Log.d(TAG, "updateProgramRecordStatusToDb programid = " + programid + ", status = " + status);
+            } catch (Exception e) {
+                Log.e(TAG, "updateProgramRecordStatusToDb Exception = ", e);
+            }
         }
     }
 }

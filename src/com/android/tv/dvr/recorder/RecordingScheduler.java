@@ -31,6 +31,9 @@ import android.support.annotation.VisibleForTesting;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Range;
+import android.media.tv.TvContract;
+import android.content.ContentValues;
+
 import com.android.tv.InputSessionManager;
 import com.android.tv.TvSingletons;
 import com.android.tv.common.SoftPreconditions;
@@ -45,8 +48,10 @@ import com.android.tv.dvr.WritableDvrDataManager;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.util.TvInputManagerHelper;
 import com.android.tv.util.Utils;
+
 import java.util.Arrays;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -70,7 +75,7 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
 
     private static final String HANDLER_THREAD_NAME = "RecordingScheduler";
     private static final long SOON_DURATION_IN_MS = TimeUnit.MINUTES.toMillis(1);
-    @VisibleForTesting static final long MS_TO_WAKE_BEFORE_START = TimeUnit.SECONDS.toMillis(30);
+    @VisibleForTesting static final long MS_TO_WAKE_BEFORE_START = TimeUnit.SECONDS.toMillis(5/*30*/);
 
     private final Looper mLooper;
     private final InputSessionManager mSessionManager;
@@ -193,12 +198,16 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
     }
 
     private boolean updatePendingRecordings() {
-        List<ScheduledRecording> scheduledRecordings =
-                mDataManager.getScheduledRecordings(
+        if (DEBUG) Log.d(TAG, "updatePendingRecordings");
+        List<ScheduledRecording> scheduledRecordings = new ArrayList<ScheduledRecording>();
+        long currentStreamTime = mClock.currentTimeMillis();
+        if (mLastStartTimePendingMs <= currentStreamTime + SOON_DURATION_IN_MS) {
+            scheduledRecordings =  mDataManager.getScheduledRecordings(
                         new Range<>(
                                 mLastStartTimePendingMs,
                                 mClock.currentTimeMillis() + SOON_DURATION_IN_MS),
                         ScheduledRecording.STATE_RECORDING_NOT_STARTED);
+        }
         for (ScheduledRecording r : scheduledRecordings) {
             scheduleRecordingSoon(r);
         }
@@ -233,6 +242,12 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
         }
         boolean needToUpdateAlarm = false;
         for (ScheduledRecording schedule : schedules) {
+            if (schedule != null) {
+                long programId = schedule.getProgramId();
+                if (programId != ScheduledRecording.ID_NOT_SET) {
+                    updateProgramRecordStatusToDb(programId, com.droidlogic.app.tv.Program.RECORD_STATUS_NOT_STARTED);
+                }
+            }
             InputTaskScheduler inputTaskScheduler = mInputSchedulerMap.get(schedule.getInputId());
             if (inputTaskScheduler != null) {
                 inputTaskScheduler.removeSchedule(schedule);
@@ -261,6 +276,7 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
     }
 
     private void handleScheduleChange(ScheduledRecording... schedules) {
+        if (DEBUG) Log.d(TAG, "handleScheduleChange " + Arrays.asList(schedules));
         boolean needToUpdateAlarm = false;
         for (ScheduledRecording schedule : schedules) {
             if (schedule.getState() == ScheduledRecording.STATE_RECORDING_NOT_STARTED) {
@@ -270,6 +286,27 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
                     needToUpdateAlarm = true;
                 }
             }
+            boolean hasSetNewStatus = false;
+            int newStatus = -1;
+            if (schedule.getState() == ScheduledRecording.STATE_RECORDING_NOT_STARTED) {
+                hasSetNewStatus = true;
+                newStatus = com.droidlogic.app.tv.Program.RECORD_STATUS_APPOINTED;
+            } else if (schedule.getState() == ScheduledRecording.STATE_RECORDING_IN_PROGRESS) {
+                hasSetNewStatus = true;
+                newStatus = com.droidlogic.app.tv.Program.RECORD_STATUS_IN_PROGRESS;
+            } else if (schedule.getState() == ScheduledRecording.STATE_RECORDING_FINISHED ||
+                    schedule.getState() == ScheduledRecording.STATE_RECORDING_FAILED ||
+                    schedule.getState() == ScheduledRecording.STATE_RECORDING_DELETED ||
+                    schedule.getState() == ScheduledRecording.STATE_RECORDING_CANCELED) {
+                hasSetNewStatus = true;
+                newStatus = com.droidlogic.app.tv.Program.RECORD_STATUS_NOT_STARTED;
+            }
+            if (hasSetNewStatus && schedule != null) {
+                long programId = schedule.getProgramId();
+                if (programId != ScheduledRecording.ID_NOT_SET) {
+                    updateProgramRecordStatusToDb(programId, newStatus);
+                }
+            }
         }
         if (needToUpdateAlarm) {
             updateNextAlarm();
@@ -277,6 +314,7 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
     }
 
     private void scheduleRecordingSoon(ScheduledRecording schedule) {
+        if (DEBUG) Log.d(TAG, "scheduleRecordingSoon " + Arrays.asList(schedule));
         TvInputInfo input = Utils.getTvInputInfoForInputId(mContext, schedule.getInputId());
         if (input == null) {
             Log.e(TAG, "Can't find input for " + schedule);
@@ -309,22 +347,30 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
             mInputSchedulerMap.put(input.getId(), inputTaskScheduler);
         }
         inputTaskScheduler.addSchedule(schedule);
-        if (mLastStartTimePendingMs < schedule.getStartTimeMs()) {
-            mLastStartTimePendingMs = schedule.getStartTimeMs();
-        }
+        //if (mLastStartTimePendingMs < schedule.getStartTimeMs()) {
+            mLastStartTimePendingMs = schedule.getStartTimeMs();//update mLastStartTimePendingMs as stream card plays with a loop
+        //}
+        if (DEBUG) Log.d(TAG, "scheduleRecordingSoon mLastStartTimePendingMs = " + Utils.toTimeString(mLastStartTimePendingMs));
     }
 
     private void updateNextAlarm() {
+        long systemTime = Clock.SYSTEM.currentTimeMillis();
+        long streamTime = mClock.currentTimeMillis();
+        long diff = systemTime - streamTime;
         long nextStartTime =
-                mDataManager.getNextScheduledStartTimeAfter(
-                        Math.max(mLastStartTimePendingMs, mClock.currentTimeMillis()));
+                mDataManager.getNextScheduledStartTimeAfter(streamTime);
+                        //Math.max(mLastStartTimePendingMs, streamTime/*mClock.currentTimeMillis()*/));
+        if (DEBUG) Log.d(TAG, "updateNextAlarm mLastStartTimePendingMs = " + Utils.toTimeString(mLastStartTimePendingMs) + ", nextStartTime = " + Utils.toTimeString(nextStartTime) +
+            "\n" + ", currentTimeMillis = " + Utils.toTimeString(systemTime) + ", currentStreamTimeMillis = " + Utils.toTimeString(streamTime));
         if (nextStartTime != DvrDataManager.NEXT_START_TIME_NOT_FOUND) {
-            long wakeAt = nextStartTime - MS_TO_WAKE_BEFORE_START;
-            if (DEBUG) Log.d(TAG, "Set alarm to record at " + wakeAt);
+            long wakeAtStreamTime = nextStartTime - MS_TO_WAKE_BEFORE_START;
+            long wakeAtSystemtime = wakeAtStreamTime + diff;//add system time diff
+            if (DEBUG) Log.d(TAG, "Set alarm to record at " + wakeAtSystemtime + "\n"
+                + ", asSystemTime = " + Utils.toTimeString(wakeAtSystemtime) + ", asStreamTime = " + Utils.toTimeString(wakeAtStreamTime));
             Intent intent = new Intent(mContext, DvrStartRecordingReceiver.class);
             PendingIntent alarmIntent = PendingIntent.getBroadcast(mContext, 0, intent, 0);
             // This will cancel the previous alarm.
-            mAlarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeAt, alarmIntent);
+            mAlarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeAtSystemtime/*wakeAt*/, alarmIntent);
         } else {
             if (DEBUG) Log.d(TAG, "No future recording, alarm not set");
         }
@@ -350,6 +396,19 @@ public class RecordingScheduler extends TvInputCallback implements ScheduledReco
         InputTaskScheduler inputTaskScheduler = mInputSchedulerMap.get(input.getId());
         if (inputTaskScheduler != null) {
             inputTaskScheduler.updateTvInputInfo(input);
+        }
+    }
+
+    public void updateProgramRecordStatusToDb(long programid, int status) {
+        if (programid != -1) {
+            try {
+                ContentValues values = new ContentValues();
+                values.put(TvContract.Programs.COLUMN_INTERNAL_PROVIDER_FLAG4, status);
+                mContext.getContentResolver().update(TvContract.buildProgramUri(programid), values, null, null);
+                Log.d(TAG, "updateProgramRecordStatusToDb programid = " + programid + ", status = " + status);
+            } catch (Exception e) {
+                Log.e(TAG, "updateProgramRecordStatusToDb Exception = ", e);
+            }
         }
     }
 }

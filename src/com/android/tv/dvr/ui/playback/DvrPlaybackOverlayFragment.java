@@ -62,7 +62,7 @@ import java.util.List;
 public class DvrPlaybackOverlayFragment extends PlaybackFragment {
     // TODO: Handles audio focus. Deals with block and ratings.
     private static final String TAG = "DvrPlaybackOverlayFrag";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static final String MEDIA_SESSION_TAG = "com.android.tv.dvr.mediasession";
     private static final float DISPLAY_ASPECT_RATIO_EPSILON = 0.01f;
@@ -308,6 +308,18 @@ public class DvrPlaybackOverlayFragment extends PlaybackFragment {
         } else {
             return (RecordedProgram) mRelatedRecordingsRowAdapter.get(position);
         }
+    }
+
+    public TvView getTvView() {
+        return mTvView;
+    }
+
+    public void showControlUi() {
+        showControlsOverlay(false);
+    }
+
+    public void hideControlUi() {
+        hideControlsOverlay(false);
     }
 
     /**

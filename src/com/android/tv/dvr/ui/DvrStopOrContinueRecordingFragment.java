@@ -41,11 +41,13 @@ import java.util.List;
  * the option to record all the episodes of the series.
  */
 @TargetApi(Build.VERSION_CODES.N)
-public class DvrStopRecordingFragment extends DvrGuidedStepFragment {
+public class DvrStopOrContinueRecordingFragment extends DvrGuidedStepFragment {
     /** The action ID for the stop action. */
-    public static final int ACTION_STOP = 1;
+    public static final int ACTION_CONTINUE = 1;
+    public static final int ACTION_STOP = 2;
+    public static final int ACTION_CANCEL = 3;
     /** Key for the program. Type: {@link com.android.tv.data.Program}. */
-    public static final String KEY_REASON = "DvrStopRecordingFragment.type";
+    public static final String KEY_REASON = "DvrStopOrContinueRecordingFragment.type";
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({REASON_USER_STOP, REASON_ON_CONFLICT})
@@ -135,15 +137,28 @@ public class DvrStopRecordingFragment extends DvrGuidedStepFragment {
         Context context = getContext();
         actions.add(
                 new GuidedAction.Builder(context)
+                        .id(ACTION_CONTINUE)
+                        .title(R.string.dvr_action_continue_record)
+                        .build());
+        actions.add(
+                new GuidedAction.Builder(context)
+                        .id(ACTION_STOP)
+                        .title(R.string.dvr_action_stop_save)
+                        .build());
+        actions.add(
+                new GuidedAction.Builder(context)
+                        .id(ACTION_CANCEL)
+                        .title(R.string.dvr_action_cancel_delete)
+                        .build());
+        /*actions.add(
+                new GuidedAction.Builder(context)
                         .id(ACTION_STOP)
                         .title(R.string.dvr_action_stop)
                         .build());
         actions.add(
                 new GuidedAction.Builder(context)
-                        .id(GuidedAction.ACTION_ID_CANCEL)
-                        .title(R.string.dvr_action_cancel_delete)
-                        /*.clickAction(GuidedAction.ACTION_ID_CANCEL)*/
-                        .build());
+                        .clickAction(GuidedAction.ACTION_ID_CANCEL)
+                        .build());*/
     }
 
     @Override
@@ -156,6 +171,10 @@ public class DvrStopRecordingFragment extends DvrGuidedStepFragment {
         long actionId = action.getId();
         if (actionId == ACTION_STOP) {
             return "stop";
+        } else if (actionId == ACTION_CONTINUE) {
+            return "continue";
+        } else if (actionId == ACTION_CANCEL) {
+            return "cancel";
         } else {
             return super.getTrackerLabelForGuidedAction(action);
         }

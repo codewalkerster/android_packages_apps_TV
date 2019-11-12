@@ -40,7 +40,7 @@ import com.android.tv.util.images.ImageLoader;
 
 class DvrPlaybackMediaSessionHelper {
     private static final String TAG = "DvrPlaybackMediaSessionHelper";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private int mNowPlayingCardWidth;
     private int mNowPlayingCardHeight;

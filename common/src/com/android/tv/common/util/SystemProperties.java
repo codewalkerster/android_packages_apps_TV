@@ -52,6 +52,12 @@ public final class SystemProperties {
     public static final BooleanSystemProperty USE_DEBUG_CHANNEL_UPDATE =
             new BooleanSystemProperty("tv_use_debug_channel_update", false);
 
+    public static final BooleanSystemProperty USE_DEBUG_TUNE_CONTROL =
+            new BooleanSystemProperty("tv_use_tune_control", true);//default tune by two steps
+
+    public static final BooleanSystemProperty USE_DEBUG_LOGIC =
+            new BooleanSystemProperty("tv_use_debug_logic", false);
+
     static {
         updateSystemProperties();
     }

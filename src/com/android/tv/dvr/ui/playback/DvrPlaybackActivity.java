@@ -23,19 +23,22 @@ import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+
 import com.android.tv.R;
 import com.android.tv.Starter;
 import com.android.tv.dialog.PinDialogFragment.OnPinCheckedListener;
 import com.android.tv.dvr.data.RecordedProgram;
 import com.android.tv.util.Utils;
+import com.android.tv.droidlogic.subtitleui.TeleTextAdvancedSettings;
 
 /** Activity to play a {@link RecordedProgram}. */
 public class DvrPlaybackActivity extends Activity implements OnPinCheckedListener {
     private static final String TAG = "DvrPlaybackActivity";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private DvrPlaybackOverlayFragment mOverlayFragment;
     private OnPinCheckedListener mOnPinCheckedListener;
+    private TeleTextAdvancedSettings mTeleTextAdvancedSettings;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -47,6 +50,7 @@ public class DvrPlaybackActivity extends Activity implements OnPinCheckedListene
         mOverlayFragment =
                 (DvrPlaybackOverlayFragment)
                         getFragmentManager().findFragmentById(R.id.dvr_playback_controls_fragment);
+        mTeleTextAdvancedSettings = new TeleTextAdvancedSettings(this, mOverlayFragment.getTvView());
     }
 
     @Override
@@ -54,6 +58,12 @@ public class DvrPlaybackActivity extends Activity implements OnPinCheckedListene
         if (DEBUG) Log.d(TAG, "onVisibleBehindCanceled");
         super.onVisibleBehindCanceled();
         finish();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        hideTeleTextAdvancedSettings();
     }
 
     @Override
@@ -89,5 +99,22 @@ public class DvrPlaybackActivity extends Activity implements OnPinCheckedListene
 
     void setOnPinCheckListener(OnPinCheckedListener listener) {
         mOnPinCheckedListener = listener;
+    }
+
+    public void showTeleTextAdvancedSettings() {
+        if (mOverlayFragment != null) {
+            mOverlayFragment.hideControlUi();
+        }
+        if (mTeleTextAdvancedSettings.getTvView() == null) {
+            mTeleTextAdvancedSettings.setTvView(mOverlayFragment.getTvView());
+        }
+        mTeleTextAdvancedSettings.creatTeletextAdvancedDialog();
+    }
+
+    public void hideTeleTextAdvancedSettings() {
+        if (mTeleTextAdvancedSettings.getTvView() == null) {
+            mTeleTextAdvancedSettings.setTvView(mOverlayFragment.getTvView());
+        }
+        mTeleTextAdvancedSettings.hideTeletextAdvancedDialog();
     }
 }

@@ -372,6 +372,7 @@
     <string name="channel_info_channel">頻道</string>
     <string name="channel_info_frequency">頻率</string>
     <string name="channel_info_strength">信號強度</string>
+    <string name="channel_info_quality">信號質量</string>
     <string name="channel_info_type">類型</string>
     <string name="channel_info_service_id">服務ID</string>
     <string name="channel_sound_channel_stereo">立體聲</string>

@@ -106,6 +106,7 @@ import com.android.tv.dvr.DvrManager;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.recorder.ConflictChecker;
 import com.android.tv.dvr.ui.DvrStopRecordingFragment;
+import com.android.tv.dvr.ui.DvrStopOrContinueRecordingFragment;
 import com.android.tv.dvr.ui.DvrUiHelper;
 import com.android.tv.menu.Menu;
 import com.android.tv.onboarding.OnboardingActivity;
@@ -148,6 +149,7 @@ import com.android.tv.util.Utils;
 import com.android.tv.util.ViewCache;
 import com.android.tv.util.account.AccountHelper;
 import com.android.tv.util.images.ImageCache;
+import com.android.tv.InputSessionManager;
 
 import com.android.tv.droidlogic.QuickKeyInfo;
 import com.android.tv.droidlogic.quickkeyui.MultiOptionFragment;
@@ -228,8 +230,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         BLACKLIST_KEYCODE_TO_TIS = new HashSet<>();
         BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_TV_INPUT);
         BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_MENU);
-        BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_CHANNEL_UP);
-        BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_CHANNEL_DOWN);
+//        BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_CHANNEL_UP);
+//        BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_CHANNEL_DOWN);
         BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_VOLUME_UP);
         BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_VOLUME_DOWN);
         BLACKLIST_KEYCODE_TO_TIS.add(KeyEvent.KEYCODE_VOLUME_MUTE);
@@ -264,6 +266,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     private static final int MSG_CHANNEL_DOWN_PRESSED = 1000;
     private static final int MSG_CHANNEL_UP_PRESSED = 1001;
     private static final int MSG_TUNE_CHANNEL = 1003;
+    private static final int MSG_TUNE_CHANNEL_SECOND_STAGE = 1004;
+     private static final int MSG_TUNE_TO_CEC_DEV = 1005;
 
     private static final int TVVIEW_SET_MAIN_TIMEOUT_MS = 3000;
 
@@ -320,12 +324,16 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     private boolean mOtherActivityLaunched;
     private PerformanceMonitor mPerformanceMonitor;
 
+    // If tv is wake up by cec playback.
+    private boolean mCareWakeByCec;
+
     private boolean mIsInPIPMode;
     private boolean mIsFilmModeSet;
     private float mDefaultRefreshRate;
 
     private TvOverlayManager mOverlayManager;
     private TvControlManager mTvControlManager = null ;
+    private PowerManager mPowerManager;
 
     // mIsCurrentChannelUnblockedByUser and mWasChannelUnblockedBeforeShrunkenByUser are used for
     // keeping the channel unblocking status while TV view is shrunken.
@@ -364,6 +372,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     //private long channelIndex = 0;
     private boolean isOKPressed = false;
     DroidLogicHdmiCecManager hdmi_cec = null;
+    private boolean mNeedSkipChannelUpAndDown = false;
 
     private TeleTextAdvancedSettings mTeleTextAdvancedSettings;
 
@@ -415,6 +424,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     tuneToChannel(toChannel);
                     break;
                 case BROADCAST_DELETE_ALL_CHANNELS:
+                    if (DEBUG) Log.d(TAG, "BROADCAST_DELETE_ALL_CHANNELS");
                     stopTv();
                     mTvView.showNoDataBaseHint();
                     break;
@@ -422,7 +432,14 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     //[DroidLogic]
                     //when all channels are deleted or skipped, stopTv.
                     //stopTv();
-                    mTvView.showNoDataBaseHint();
+                    if (DEBUG) Log.d(TAG, "BROADCAST_SKIP_ALL_CHANNELS");
+                    String searchInput = DroidLogicTvUtils.getSearchInputId(MainActivity.this);
+                    if (searchInput != null && searchInput.startsWith(QuickKeyInfo.DTVKIT_PACKAGE)) {
+                        if (DEBUG) Log.d(TAG, "dtvkit need switch hidden channel by number key");
+                        return;
+                    } else {
+                        mTvView.showNoDataBaseHint();
+                    }
                     break;
             }
         }
@@ -579,17 +596,21 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     private void tuneToCecDev(final TvInputInfo info) {
         Log.d(TAG,"tuneToCecDev:"+info);
         if (info != null && info.getParentId() != null) {
-            mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    Channel currentChannel = mChannelTuner.getCurrentChannel();
-                    if (!info.getId().equals(currentChannel != null ? currentChannel.getInputId() : null) && !info.getParentId().equals(currentChannel != null ? currentChannel.getInputId() : null)) {
-                        if (DEBUG) Log.d(TAG, "tuneToCecDev by ParentId = " + info.getParentId());
-                        DroidLogicTvUtils.setCurrentInputId(MainActivity.this, info.getId());
-                        tuneToChannel(ChannelImpl.createPassthroughChannel(info.getParentId()));
-                    }
-                }
-            });
+
+            Channel currentChannel = mChannelTuner.getCurrentChannel();
+            String currentId = "";
+            String devId = info.getId();
+            String devParentId = info.getParentId();
+            if (currentChannel != null) {
+                currentId = currentChannel.getInputId();
+            }
+            Log.d(TAG,"tuneToCecDev currentChannel:" + currentId + " devId " + devId + " devParentId " + devParentId);
+
+            if (currentId != devId && (currentId != devParentId)) {
+                Log.d(TAG, "tuneToCecDev by ParentId = " + devParentId);
+                DroidLogicTvUtils.setCurrentInputId(MainActivity.this, devId);
+                mHandler.sendMessage(Message.obtain(mHandler, MSG_TUNE_TO_CEC_DEV, devParentId));
+            }
         }
     }
 
@@ -803,6 +824,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             mDvrManager = tvApplication.getDvrManager();
         }
         mTvControlManager = TvControlManager.getInstance();
+        mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mTimeShiftManager =
                 new TimeShiftManager(
                         this,
@@ -959,11 +981,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                 Log.d(TAG,"onChanged:"+info);
                 if (info == null)
                     return ;
+                /*
                 if (mIgnoreHdmiCecTvInput) {
                     if (DEBUG)
                         Log.d(TAG,"mIgnoreHdmiCecTvInput: " + mIgnoreHdmiCecTvInput);
                     return;
                 }
+                */
                 if (info.isCecDevice() && mTvView.getEasStatus() == EAS_NOT_IN_PROGRESS)  {
                     List<TvInputInfo> input_list = mTvInputManagerHelper.getTvInputList();
                     for (TvInputInfo tvinputinfo : input_list) {
@@ -991,7 +1015,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         mPerformanceMonitor.stopTimer(timer, EventNames.MAIN_ACTIVITY_ONCREATE);
 
         mClock = new TvClock(this);
-        mTeleTextAdvancedSettings = new TeleTextAdvancedSettings(this);
+        mTeleTextAdvancedSettings = new TeleTextAdvancedSettings(this, mTvView.getTvView());
     }
 
     private void startOnboardingActivity() {
@@ -1191,14 +1215,12 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         }
         Debug.getTimer(Debug.TAG_START_UP_TIMER).log("MainActivity.onResume end");
         mPerformanceMonitor.stopTimer(timer, EventNames.MAIN_ACTIVITY_ONRESUME);
-        mIgnoreHdmiCecTvInput = false;
         mQuickKeyInfo.dealOnResume();
     }
 
     @Override
     protected void onPause() {
         if (DEBUG) Log.d(TAG, "onPause()");
-        mIgnoreHdmiCecTvInput = true;
         if (mDvrConflictChecker != null) {
             mDvrConflictChecker.stop();
         }
@@ -1273,6 +1295,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
 
     private void resumeTvIfNeeded() {
         if (DEBUG) Log.d(TAG, "resumeTvIfNeeded()");
+        // Take consideration of cec wake situation here before resume tv with initial input.
+        updateInitChannelForCecWake();
         if (!mTvView.isPlaying()
                 || mInitChannelUri != null
                 || (mShouldTuneToTunerChannel && mChannelTuner.isCurrentChannelPassthrough())) {
@@ -1301,6 +1325,24 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         // application.
         restoreMainTvView();
         mTvView.setBlockScreenType(getDesiredBlockScreenType());
+    }
+
+    private void updateInitChannelForCecWake() {
+        Log.d(TAG, "updateInitChannelForCecWake " + mCareWakeByCec);
+        if (!mTvInputManagerHelper.isFirstLaunch() && !mCareWakeByCec) {
+            // When tv is not first boot and is not waked by cec either, no need to care more.
+            return;
+        }
+        mCareWakeByCec = false;
+        TvInputInfo cecWakeTvInput = mTvInputManagerHelper.getCecWakeInput(mTvControlManager);
+        if (null == cecWakeTvInput) {
+            Log.d(TAG, "not wake by cec");
+            return;
+        }
+        String inputId = cecWakeTvInput.getId();
+        Log.d(TAG, "updateInitChannelForCecWake inputId: " + inputId);
+        mInitChannelUri = TvContract.buildChannelUriForPassthroughInput(inputId);
+        DroidLogicTvUtils.setCurrentInputId(MainActivity.this, inputId);
     }
 
     public int getSearchTypeChangedStatus() {
@@ -1466,8 +1508,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         if (mScreenOffIntentReceived) {
             mScreenOffIntentReceived = false;
         } else {
-            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (!powerManager.isInteractive()) {
+            if (!mPowerManager.isInteractive()) {
                 // We added to check isInteractive as well as SCREEN_OFF intent, because
                 // calling timing of the intent SCREEN_OFF is not consistent. b/25953633.
                 // If we verify that checking isInteractive is enough, we can remove the logic
@@ -1480,6 +1521,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         unregisterReceiver(mBroadcastReceiver);
         mTracker.sendMainStop(mMainDurationTimer.reset());
         hdmi_cec.selectHdmiDevice(0, 0, 0);
+        hdmi_cec.setDeviceIdForCec(DroidLogicTvUtils.DEVICE_ID_ATV - 1);  //home
         if (mOverlayManager.getSideFragmentManager().getStartedByDroid()) {
             mOverlayManager.getSideFragmentManager().setStartedByDroid(false);
         }
@@ -1493,6 +1535,9 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
 
     /** Handles screen off to keep the current channel for next screen on. */
     private void markCurrentChannelDuringScreenOff() {
+        Log.d(TAG, "markCurrentChannelDuringScreenOff");
+        // When system goes to standby, we should care the cec wake situation again.
+        mCareWakeByCec = true;
         mInitChannelUri = mChannelTuner.getCurrentChannelUri();
         if (mChannelTuner.isCurrentChannelPassthrough()) {
             // When ACTION_SCREEN_OFF is invoked, some CEC devices may be already
@@ -1541,6 +1586,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         if (input != null && input.getServiceInfo().packageName.equals(DroidLogicTvUtils.TV_DROIDLOGIC_PACKAGE)) {
             setupIntent = new Intent(this, ChannelSearchActivity.class);
             setupIntent.putExtra(CommonConstants.EXTRA_INPUT_ID, input.getId());
+            setupIntent.putExtra(DroidLogicTvUtils.KEY_LIVETV_PVR_STATUS, getPvrScheduleStatus());
             return setupIntent;
         } else if (input != null && !input.isPassthroughInput()) {
             /*saveChannelIdForAtvDtvMode(-1);//reset channel id if searched
@@ -1550,6 +1596,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         Log.d(TAG, "createDroidLogicSetupIntent input = " + input);
         setupIntent = input.createSetupIntent();
         setupIntent.putExtra(CommonConstants.EXTRA_INPUT_ID, input.getId());
+        setupIntent.putExtra(DroidLogicTvUtils.KEY_LIVETV_PVR_STATUS, getPvrScheduleStatus());
         return setupIntent;
     }
 
@@ -1858,7 +1905,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     } else if (mQuickKeyInfo.hasStartedSearch()) {//update dtvkit first searched channel
                         long id = mQuickKeyInfo.getDtvKitSearchedChannelId(data);
                         String searchedInputId = DroidLogicTvUtils.getSearchInputId(MainActivity.this);
-                        if (searchedInputId != null && !searchedInputId.startsWith(DroidLogicTvUtils.TV_DROIDLOGIC_PACKAGE) && id != -1) {
+                        if ((searchedInputId != null && !searchedInputId.startsWith(DroidLogicTvUtils.TV_DROIDLOGIC_PACKAGE) && id != -1) ||
+                                mQuickKeyInfo.getDtvKitSearchedBrowseOrHiddenChannelNumber(data) > 0) {
                             saveChannelIdForAtvDtvMode(id);//reset channel id if searched
                             Uri channelUri = TvContract.buildChannelUri(id);
                             Utils.setLastWatchedChannelUri(MainActivity.this, channelUri.toString());
@@ -2063,6 +2111,16 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                 // If mInitChannelUri is for a passthrough TV input.
                 String inputId = mInitChannelUri.getPathSegments().get(1);
                 TvInputInfo input = mTvInputManagerHelper.getTvInputInfo(inputId);
+                if (input != null) {
+                    HdmiDeviceInfo hdmiinfo = input.getHdmiDeviceInfo();
+                    if (hdmiinfo != null && hdmiinfo.isCecDevice()) {
+                        String parentid = input.getParentId();
+                        if (parentid != null) {
+                            input = mTvInputManagerHelper.getTvInputInfo(parentid);
+                            mInitChannelUri = TvContract.buildChannelUriForPassthroughInput(parentid);
+                        }
+                    }
+                }
                 if (input == null) {
                     mInitChannelUri = null;
                     Toast.makeText(this, R.string.msg_no_specific_input, Toast.LENGTH_SHORT).show();
@@ -2174,6 +2232,9 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         } else {
             if (DEBUG) Log.d(TAG, "stopTv()");
         }
+        if (mHandler != null) {
+            mHandler.removeCallbacks(mRestoreMainViewRunnable);
+        }
         if (mTvView.isPlaying()) {
             mTvView.stop();
             if (!keepVisibleBehind) {
@@ -2221,6 +2282,19 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         mTunePending = false;
         mProgramDataManager.stopUpdateCurrentPlayingProgram();//stop last update
         Channel channel = mChannelTuner.getCurrentChannel();
+        /*support cec otp filter*/
+        if (channel != null) {
+            int deviceId = DroidLogicTvUtils.getHardwareDeviceId(channel.getInputId());
+            if (deviceId != -1) {
+                hdmi_cec.setDeviceIdForCec(deviceId);
+            } else {
+                hdmi_cec.setDeviceIdForCec(DroidLogicTvUtils.DEVICE_ID_ATV);
+            }
+        } else {
+            //channel default is atv
+            hdmi_cec.setDeviceIdForCec(DroidLogicTvUtils.DEVICE_ID_ATV);
+        }
+        /*support cec otp filter*/
         try {
             SoftPreconditions.checkState(channel != null);
         } catch (RuntimeException e) {
@@ -2245,6 +2319,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         //avl module need realtime source id
         mQuickKeyInfo.sendSourceToAvlModule(channel);
         if (channel == null || (channel != null && !channel.isPassthrough() && !mQuickKeyInfo.isChannelMatchAtvDtvSource(channel))) {
+            Log.d(TAG, "tune check channel = " + channel);
             mChannelTuner.resetCurrentChannel();
             //set current tvinputinfo to tuner as no channel
             if (channel == null) {
@@ -2257,9 +2332,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             }
             if (preparechannel == null) {
                 long channelId = Utils.getLastWatchedChannelId(this);
-                if (channelId != Channel.INVALID_ID) {
-                    Log.w(TAG, "tune need a invalid channeluri");
-                }
+                Log.d(TAG, "tune channelId = " + channelId);
                 Uri channelUri = TvContract.buildChannelUri(channelId);
                 Utils.setLastWatchedChannelUri(this, channelUri.toString());
                 mTvView.showNoDataBaseHint();
@@ -2284,9 +2357,11 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     return;
                 }
                 if (mChannelDataManager.getChannelCount() > 0) {
+                    Log.d(TAG, "tune showIntroDialog");
                     mOverlayManager.showIntroDialog();
                 } else if (USE_DROIDLOIC_CUSTOMIZATION) {
                      //show nothing even not tuned
+                    Log.d(TAG, "tune show nothing even not tuned 1");
                     return;
                 }else {
                     startOnboardingActivity();
@@ -2295,13 +2370,15 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             }
             mShowNewSourcesFragment = false;
             if (mChannelTuner.getBrowsableChannelCount() == 0
-                    && mChannelDataManager.getChannelCount() > 0
+                    && mChannelDataManager.getChannelCount() > 0 && (USE_DROIDLOIC_CUSTOMIZATION && mChannelDataManager.getChannelCount() == 0)
                     && !mOverlayManager.getSideFragmentManager().isActive()) {
                 if (!mChannelTuner.areAllChannelsLoaded()) {
+                    Log.d(TAG, "tune all channels not loaded return");
                     return;
                 }
                 if (USE_DROIDLOIC_CUSTOMIZATION) {
                     //show nothing if no channel
+                    Log.d(TAG, "tune show nothing even not tuned 2");
                     return;
                 }
                 if (mTvInputManagerHelper.getTunerTvInputSize() == 1) {
@@ -2331,6 +2408,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                             }
                         });
             }
+            Log.d(TAG, "tune mSetupUtils onTuned");
             mSetupUtils.onTuned();
             if (mTuneParams != null) {
                 Long initChannelId = mTuneParams.getLong(KEY_INIT_CHANNEL_ID);
@@ -2363,7 +2441,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         //sub index is saved in db of each channel
         resetCaptionSettings();
         resetAudioTrack();
-
+        if (DEBUG) Log.d(TAG, "mTvView.tuneTo");
         boolean success = mTvView.tuneTo(channel, mTuneParams, mOnTuneListener);
         if (DEBUG) Log.d(TAG, "tune status = " + success + ", channeluri = " + (channel != null ? (channel.getUri() + "  " + channel.getDisplayNumber()) : null));
         mOnTuneListener.onTune(channel, isUnderShrunkenTvView());
@@ -2379,14 +2457,39 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
 
          /*filtered cec otp end*/
         scheduleRestoreMainTvView();
+        //deal tune in tuneSecondStage as tvview need to response callback
+        if (!SystemProperties.USE_DEBUG_TUNE_CONTROL.getValue()) {
+            tuneSecondStage(channel, updateChannelBanner);
+        } else {
+            Log.d(TAG, "tune wait for event_tune_finished and then update livetv ui");
+        }
+    }
+
+    public void sendSecondTuneStage() {
+        if (mHandler != null) {
+            mHandler.sendMessage(mHandler.obtainMessage(
+                MSG_TUNE_CHANNEL_SECOND_STAGE, 1, 0, getCurrentChannel()));
+        } else {
+            Log.d(TAG, "sendSecondTuneStage null handler");
+        }
+    }
+
+    private void tuneSecondStage(Channel channel, boolean updateChannelBanner) {
+        if (channel == null || mTvView == null) {
+            Log.d(TAG, "tuneSecondStage return as null channel");
+            return;
+        }
+        if (SystemProperties.USE_DEBUG_TUNE_CONTROL.getValue() && !channel.isPassthrough()) {
+            mOverlayManager.updateChannelBannerView();
+        }
         if (!isUnderShrunkenTvView()) {
             if (!channel.isPassthrough()) {
                 addToRecentChannels(channel.getId());
             }
-            Utils.setLastWatchedChannel(this, channel);
-            TvSingletons.getSingletons(this)
+            Utils.setLastWatchedChannel(MainActivity.this, channel);
+            TvSingletons.getSingletons(MainActivity.this)
                     .getMainActivityWrapper()
-                    .notifyCurrentChannelChange(this, channel);
+                    .notifyCurrentChannelChange(MainActivity.this, channel);
         }
         // We have to provide channel here instead of using TvView's channel, because TvView's
         // channel might be null when there's tuner conflict. In that case, TvView will resets
@@ -2495,7 +2598,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
 
     private void blockOrUnblockScreen(TunableTvView tvView, boolean blockOrUnblock) {
         String valueStr = mQuickKeyInfo.getProperty(DroidLogicTvUtils.TV_CURRENT_CHANNELBLOCK_STATUS);
-        if (tvView != null && tvView.getResetBlockUiStatus() && !TextUtils.isEmpty(valueStr)) {
+        boolean needPreview = mQuickKeyInfo.needPreviewFetureInLuncher();
+        if (needPreview && tvView != null && tvView.getResetBlockUiStatus() && !TextUtils.isEmpty(valueStr)) {
             boolean lastBlockStatus = mQuickKeyInfo.getPropertyBoolean(DroidLogicTvUtils.TV_CURRENT_CHANNELBLOCK_STATUS, false);
             long lastChannelId = getChannelIdForAtvDtvMode();
             Channel currentOne = tvView.getCurrentChannel();
@@ -2753,6 +2857,12 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         if (SystemProperties.LOG_KEYEVENT.getValue()) {
             Log.d(TAG, "onKeyDown(" + keyCode + ", " + event + ")");
         }
+
+        if (!mPowerManager.isScreenOn()) {
+            Log.d(TAG, "TV is sleeping, drop keyevent");
+            return true;
+        }
+
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
             isOKPressed = true;
         }
@@ -2773,8 +2883,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         if (!mChannelTuner.areAllChannelsLoaded()) {
             return false;
         }
-        //dvr stop or cancel will be dealt in onkey up
-        if ((isChannelUpOrDown(event) && isCurrentChannelDvrRecording()) || handleUpDownKeys(keyCode, event)) {
+        if (isChannelUpOrDown(event)) {
+            if (isCurrentChannelDvrRecording()) {//deal dvr recording first
+                mNeedSkipChannelUpAndDown = true;
+                CheckNeedStopDvrFragment(event, false);
+            } else {
+                handleUpDownKeys(keyCode, event);
+            }
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -2853,15 +2968,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             Log.d(TAG, "onKeyUp(" + keyCode + ", " + event + ")");
         }
 
-        if (isFinishing() || isDestroyed()) {
+        if (!mPowerManager.isScreenOn()) {
+            Log.d(TAG, "TV is sleeping, drop keyevent");
             return true;
         }
 
-        // If we are in the middle of channel change, finish it before showing overlays.
-        if (isChannelUpOrDown(event) && isCurrentChannelDvrRecording()) {
-            CheckNeedStopDvrFragment(event, false);
-        } else {
-            finishChannelChangeIfNeeded();
+        if (isFinishing() || isDestroyed()) {
+            return true;
         }
 
         //check no signal timeout status when any key press
@@ -2876,6 +2989,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             if (mQuickKeyInfo.checkFactoryMenuStatus(keyCode)) {
                 return true;
             }
+        }
+
+        // If we are in the middle of channel change, finish it before showing overlays.
+        if (!mNeedSkipChannelUpAndDown) {
+            finishChannelChangeIfNeeded();
+        } else {
+            mNeedSkipChannelUpAndDown = false;
         }
 
         if (event.getKeyCode() == KeyEvent.KEYCODE_SEARCH) {
@@ -2905,6 +3025,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             default:
                 // fall through
         }
+
         if (mSearchFragment.isVisible()) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 getFragmentManager().popBackStack();
@@ -2913,14 +3034,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             return super.onKeyUp(keyCode, event);
         }
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // When the event is from onUnhandledInputEvent, onBackPressed is not automatically
-            // called. Therefore, we need to explicitly call onBackPressed().
-            if (isCurrentChannelDvrRecording()) {
-                Log.d(TAG, "onKeyUp back is record");
-                CheckNeedStopDvrFragment(event, true);
-            } else {
-                onBackPressed();
-            }
+            onBackPressed();
             return true;
         }
 
@@ -2942,8 +3056,9 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     }
                     return true;
                 default: // fall out
-                    if (USE_DROIDLOIC_CUSTOMIZATION && DroidLogicTvUtils.isAtscCountry(MainActivity.this) &&
+                    if (USE_DROIDLOIC_CUSTOMIZATION && (mChannelTuner.getAllChannelListCount() > 0 || DroidLogicTvUtils.isAtscCountry(MainActivity.this)) &&
                             KeypadChannelSwitchView.isChannelNumberKey(keyCode)) {
+                        Log.d(TAG, "onKeyUp number search or has hidden channels");
                         mOverlayManager.showKeypadChannelSwitch(keyCode);
                         return true;
                     }
@@ -3098,7 +3213,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                 case QuickKeyInfo.KEYCODE_TV_SLEEP:
                     mQuickKeyInfo.QuickKeyAction(keyCode);
                     return true;
-                case QuickKeyInfo.KEYCODE_FAV:
+                case QuickKeyInfo.KEYCODE_FAV:{
+                    final Channel channel = getCurrentChannel();
+                    if (channel != null && !channel.isPassthrough() && channel.isOtherChannel()) {//add for dtvkit for the moment
+                        mQuickKeyInfo.startFavSettings();
+                        return true;
+                    }
+                }
                 case QuickKeyInfo.KEYCODE_LIST:
                     final Channel channel1 = getCurrentChannel();
                     if (channel1 != null && !channel1.isPassthrough()) {
@@ -3137,14 +3258,14 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                                         });
                             }
                         } else {
-                            DvrUiHelper.showStopRecordingDialog(
+                            DvrUiHelper.showStopOrContinueRecordingDialog(
                                     this,
                                     currentChannel.getId(),
-                                    DvrStopRecordingFragment.REASON_USER_STOP,
+                                    DvrStopOrContinueRecordingFragment.REASON_USER_STOP,
                                     new HalfSizedDialogFragment.OnActionClickListener() {
                                         @Override
                                         public void onActionClick(long actionId) {
-                                            if (actionId == DvrStopRecordingFragment.ACTION_STOP) {
+                                            if (actionId == DvrStopOrContinueRecordingFragment.ACTION_STOP) {
                                                 ScheduledRecording currentRecording =
                                                         mDvrManager.getCurrentRecording(
                                                                 currentChannel.getId());
@@ -3158,7 +3279,23 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                                                 if (currentRecording != null) {
                                                     mDvrManager.cancelRecording(currentRecording);
                                                 }
-                                            }
+                                            } else if (actionId == DvrStopOrContinueRecordingFragment.ACTION_CANCEL) {
+                                                Log.d(TAG, "cancel record");
+                                                ScheduledRecording currentRecording =
+                                                        mDvrManager.getCurrentRecording(getCurrentChannelId());
+                                                if (currentRecording != null) {
+                                                     mDvrManager.cancelRecording(currentRecording);
+                                                }
+                                            } else if (actionId == DvrStopOrContinueRecordingFragment.ACTION_CONTINUE) {
+                                                    Log.d(TAG, "continue record");
+                                            }/*else if (actionId == GuidedAction.ACTION_ID_CANCEL) {
+                                                ScheduledRecording currentRecording =
+                                                        mDvrManager.getCurrentRecording(
+                                                                currentChannel.getId());
+                                                if (currentRecording != null) {
+                                                    mDvrManager.cancelRecording(currentRecording);
+                                                }
+                                            }*/
                                         }
                                     });
                         }
@@ -3294,7 +3431,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             }
             Channel prepareTuneChannel = mChannelTuner.getCurrentChannel();
             //if prepareTuneChannel is google channel or other type, delay 500ms to release related resource
-            if (prepareTuneChannel != null && prepareTuneChannel.isOtherChannel()) {
+            if (prepareTuneChannel != null && prepareTuneChannel.isOtherChannel() && !QuickKeyInfo.DTVKIT_PACKAGE.equals(prepareTuneChannel.getPackageName())) {//dtvkit is physical tuner and no need to wait
                 mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_TUNE_CHANNEL, mChannelTuner.getCurrentChannel()), CHANNEL_CHANGE_INITIAL_DELAY_MILLIS);
             } else {
                 //tuneToChannel(mChannelTuner.getCurrentChannel());
@@ -3395,6 +3532,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     }
 
     public void tuneToChannel(Channel channel) {
+        Log.d(TAG, "tuneToChannel " + channel);
         if (channel == null) {
             if (mTvView.isPlaying()) {
                 mTvView.reset();
@@ -3407,16 +3545,20 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                 //saveChannelIdForAtvDtvMode(channel.getId());
             }
             if (!mTvView.isPlaying()) {
+                Log.d(TAG, "tuneToChannel tvview not play");
                 startTv(channel.getUri());
             } else if (channel.equals(mTvView.getCurrentChannel())) {
+                Log.d(TAG, "tuneToChannel TvView same channel");
                 if (!mOverlayManager.isChannelBannerViewActive()) {
                     mOverlayManager.updateChannelBannerAndShowIfNeeded(
                             TvOverlayManager.UPDATE_CHANNEL_BANNER_REASON_TUNE);
                 }
             } else if (channel.equals(mChannelTuner.getCurrentChannel())) {
+                Log.d(TAG, "tuneToChannel ChannelTuner same channel");
                 // Channel banner is already updated in moveToAdjacentChannel
                 tune(false);
             } else if (mChannelTuner.moveToChannel(channel)) {
+                Log.d(TAG, "tuneToChannel move to channel");
                 // Channel banner would be updated inside of tune.
                 tune(true);
             } else {
@@ -3429,39 +3571,110 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         }
     }
 
+    public void CheckNeedStopDvrFragmentWhenTuneTo(Channel nextchannel) {
+        Channel currentchanel = getCurrentChannel();
+        if (currentchanel == null || nextchannel == null || mIsCheckingNeedStopDvr) {
+            return;
+        }
+        boolean isSameFrequency = true;
+        if (currentchanel != null && nextchannel != null && currentchanel.getFrequency() != nextchannel.getFrequency()) {
+            isSameFrequency = false;
+        }
+        mIsCheckingNeedStopDvr = true;
+        boolean isTooManySession = isRecordSessionLargerThanTuner(currentchanel);
+        creatDvrConfirmInfoDialog(currentchanel, nextchannel, isTooManySession, !isSameFrequency, null);
+    }
+
     private boolean mIsCheckingNeedStopDvr = false;
-    private KeyEvent mKeyEvent = null;
-    private boolean mKeyeventExit = false;
+
+    public boolean isCheckingInDialog() {
+        return mIsCheckingNeedStopDvr;
+    }
 
     private void CheckNeedStopDvrFragment(KeyEvent keyevent, boolean exit) {
         long currentid = getCurrentChannelId();
-        if (currentid == -1) {
+        Channel currentchanel = getCurrentChannel();
+        if (currentid == -1 || currentchanel == null || mIsCheckingNeedStopDvr) {
             return;
         }
-        mKeyEvent = keyevent;
-        mKeyeventExit = exit;
+        boolean up = false;
+        if (keyevent.getKeyCode() == KeyEvent.KEYCODE_CHANNEL_UP || keyevent.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) {
+            up = true;
+        }
+        Channel nextchannel = mChannelTuner.getAdjacentBrowsableChannel(up);
+        boolean isSameFrequency = true;
+        if (currentchanel != null && nextchannel != null && currentchanel.getFrequency() != nextchannel.getFrequency()) {
+            isSameFrequency = false;
+        }
         mIsCheckingNeedStopDvr = true;
-        DvrUiHelper.showStopRecordingDialog(
-                this,
-                getCurrentChannelId(),
-                DvrStopRecordingFragment.REASON_USER_STOP,
+        boolean isTooManySession = isRecordSessionLargerThanTuner(currentchanel);
+        creatDvrConfirmInfoDialog(currentchanel, null, isTooManySession, !isSameFrequency, keyevent);
+    }
+
+    private boolean isRecordSessionLargerThanTuner(Channel nextchannel) {
+        boolean result = false;
+        TvInputInfo nextinput = null;
+        InputSessionManager inputSessionManager = null;
+        boolean isTooManySession = false;
+        if (CommonFeatures.DVR.isEnabled(MainActivity.this) && nextchannel != null) {
+            inputSessionManager = TvSingletons.getSingletons(MainActivity.this).getInputSessionManager();
+            nextinput = mTvInputManagerHelper.getTvInputInfo(nextchannel.getInputId());
+        }
+        if (inputSessionManager != null && nextinput != null && nextinput.canRecord()
+                        && !inputSessionManager.isTunedForRecording(nextchannel.getUri())
+                        && inputSessionManager.getTunedRecordingSessionCount(nextinput.getId()) >= nextinput.getTunerCount()) {
+            isTooManySession = true;
+        }
+        return result;
+    }
+
+    private void creatDvrConfirmInfoDialog(final Channel currentChannel, final Channel nextChannel, final boolean isSessionLragerThenTunerNumber, final boolean isDiffrentFrequency, final KeyEvent keyevent) {
+        DvrUiHelper.showStopOrContinueRecordingDialog(
+                this, currentChannel.getId(), DvrStopOrContinueRecordingFragment.REASON_USER_STOP,
                 new HalfSizedDialogFragment.OnActionClickListener() {
                     @Override
                     public void onActionClick(long actionId) {
-                        Log.d(TAG, "onActionClick actionId = " + actionId);
-                        if (actionId == DvrStopRecordingFragment.ACTION_STOP) {
+                        //Log.d(TAG, "onActionClick actionId = " + actionId);
+                        if (actionId == DvrStopOrContinueRecordingFragment.ACTION_STOP) {
+                            Log.d(TAG, "stop record");
                             ScheduledRecording currentRecording =
-                                    mDvrManager.getCurrentRecording(getCurrentChannelId());
+                                    mDvrManager.getCurrentRecording(currentChannel.getId());
                             if (currentRecording != null) {
-                                 mIsCheckingNeedStopDvr = false;
                                  mDvrManager.stopRecording(currentRecording);
                             }
-                        } else if (actionId == GuidedAction.ACTION_ID_CANCEL) {
+                        } else if (actionId == DvrStopOrContinueRecordingFragment.ACTION_CANCEL) {
+                            Log.d(TAG, "cancel record");
                             ScheduledRecording currentRecording =
-                                    mDvrManager.getCurrentRecording(getCurrentChannelId());
+                                    mDvrManager.getCurrentRecording(currentChannel.getId());
                             if (currentRecording != null) {
-                                 mIsCheckingNeedStopDvr = false;
                                  mDvrManager.cancelRecording(currentRecording);
+                            }
+                        } else if (actionId == DvrStopOrContinueRecordingFragment.ACTION_CONTINUE) {
+                            Log.d(TAG, "continue record");
+                            if (isSessionLragerThenTunerNumber) {
+                                Log.d(TAG, "need to stop current record as too many record sessions");
+                                Toast.makeText(MainActivity.this, R.string.pvr_too_many_sessions_tips, Toast.LENGTH_SHORT).show();
+                            } else if (isDiffrentFrequency) {
+                                Log.d(TAG, "need to stop record as next channel frequency will be other");
+                                Toast.makeText(MainActivity.this, R.string.pvr_diffrent_frequency_tips, Toast.LENGTH_SHORT).show();
+                            } else {
+                                if (keyevent != null) {
+                                    handleUpDownKeys(keyevent.getKeyCode(), keyevent);
+                                    finishChannelChangeIfNeeded();
+                                } else {
+                                    //if currentChannel is google channel or other type, delay 500ms to release related resource
+                                    if (mHandler != null) {
+                                        mHandler.removeMessages(MSG_TUNE_CHANNEL);
+                                        if (nextChannel != null && nextChannel.isOtherChannel() && !QuickKeyInfo.DTVKIT_PACKAGE.equals(nextChannel.getPackageName())) {//dtvkit is physical tuner and no need to wait
+                                            mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_TUNE_CHANNEL, nextChannel), CHANNEL_CHANGE_INITIAL_DELAY_MILLIS);
+                                        } else {
+                                            //tuneToChannel(mChannelTuner.getCurrentChannel());
+                                            mHandler.sendMessageDelayed(mHandler.obtainMessage(MSG_TUNE_CHANNEL, nextChannel), CHANNEL_CHANGE_DELAY_MS_IN_NORMAL_SPEED);
+                                        }
+                                    } else {
+                                        Log.d(TAG, "creatDvrConfirmInfoDialog empty mHandler");
+                                    }
+                                }
                             }
                         }
                     }
@@ -3470,30 +3683,42 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     @Override
                     public void onDismiss() {
                         Log.d(TAG, "DismissListener onDismiss");
-                        if (mIsCheckingNeedStopDvr) {
-                            mIsCheckingNeedStopDvr = false;
-                            ScheduledRecording currentRecording =
-                                    mDvrManager.getCurrentRecording(getCurrentChannelId());
-                            if (currentRecording != null) {
-                                 mIsCheckingNeedStopDvr = false;
-                                 mDvrManager.cancelRecording(currentRecording);
-                            }
-                        }
-                        if (mKeyEvent != null && !mKeyeventExit) {
-                            handleUpDownKeys(mKeyEvent.getKeyCode(), mKeyEvent);
-                            mKeyEvent = null;
-                            finishChannelChangeIfNeeded();
-                        } else if (mKeyEvent != null && mKeyeventExit) {
-                            onBackPressed();
-                        }
+                        mIsCheckingNeedStopDvr = false;
                     }
                 });
     }
 
-    private boolean isCurrentChannelDvrRecording() {
-        ScheduledRecording currentRecording =
+    public boolean isCurrentChannelDvrRecording() {
+        boolean result = false;
+        if (mDvrManager != null) {
+            ScheduledRecording currentRecording =
                 mDvrManager.getCurrentRecording(getCurrentChannelId());
-        return currentRecording != null;
+            result = currentRecording != null;
+        }
+        return result;
+    }
+
+    private boolean isScheduleRecordingAvailable() {
+        return mDvrManager != null && mDvrManager.hasScheduleRecordingAvailable();
+    }
+
+    private boolean isRecordProgramAvailable() {
+        return mDvrManager != null && mDvrManager.hasRecordProgramAvailable();
+    }
+
+    private String getPvrScheduleStatus() {
+        String pvrStatus = null;
+        if (isScheduleRecordingAvailable()) {
+            pvrStatus = "schedule";
+        }
+        if (isRecordProgramAvailable()) {
+            if (pvrStatus == null) {
+                pvrStatus = "program";
+            } else {
+                pvrStatus = pvrStatus + ",program";
+            }
+        }
+        return pvrStatus;
     }
 
     /**
@@ -3632,12 +3857,29 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         mCaptionSettings.setEnableOption(CaptionSettings.OPTION_ON);
         mCaptionSettings.setLanguage(language);
         mCaptionSettings.setTrackId(trackId);
+        boolean found = false;
+        List<TvTrackInfo> tracks = getTracks(TvTrackInfo.TYPE_SUBTITLE);
+        if (tracks != null) {
+            for (TvTrackInfo track : tracks) {
+                if (track.getId().equals(trackId)) {
+                    Log.d(TAG, "updateCaptionSettings found " + trackId);
+                    mTvOptionsManager.onClosedCaptionsChanged(track, tracks.indexOf(track));
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            Log.d(TAG, "updateCaptionSettings not found");
+            mTvOptionsManager.onClosedCaptionsChanged(null, UNDEFINED_TRACK_INDEX);
+        }
     }
 
     private void resetCaptionSettings() {
         mCaptionSettings.setEnableOption(CaptionSettings.OPTION_SYSTEM);
         mCaptionSettings.setLanguage(null);
         mCaptionSettings.setTrackId(null);
+        mTvOptionsManager.onClosedCaptionsChanged(null, UNDEFINED_TRACK_INDEX);
     }
 
     private void resetAudioTrack() {
@@ -3789,10 +4031,17 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     sendMessageDelayed(Message.obtain(msg), getDelay(startTime));
                     mainActivity.moveToAdjacentChannel(true, true);
                     break;
+                case MSG_TUNE_TO_CEC_DEV:
+                    mainActivity.tuneToChannel(ChannelImpl.createPassthroughChannel((String)msg.obj));
+                    break;
                 case MSG_TUNE_CHANNEL:
                     Channel channel = (Channel) msg.obj;
                     mainActivity.tuneToChannel(channel);
                     if (DEBUG) Log.d(TAG, "MSG_CHANNEL_TUNE");
+                case MSG_TUNE_CHANNEL_SECOND_STAGE:
+                    Channel channel1 = (Channel) msg.obj;
+                    mainActivity.tuneSecondStage(channel1, msg.arg1 == 1);
+                    if (DEBUG) Log.d(TAG, "MSG_TUNE_CHANNEL_SECOND_STAGE");
                 default: // fall out
             }
         }
@@ -3869,6 +4118,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             }
             Channel currentChannel =
                     mChannelDataManager.getChannel(ContentUriUtils.safeParseId(channel));
+            saveChannelIdForAtvDtvMode(DroidLogicTvUtils.getChannelId(channel));
             if (currentChannel == null) {
                 Log.e(
                         TAG,

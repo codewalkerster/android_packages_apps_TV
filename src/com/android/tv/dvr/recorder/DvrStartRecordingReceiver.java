@@ -21,18 +21,50 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.support.annotation.RequiresApi;
+import android.util.Log;
+import android.os.PowerManager;
+import android.os.SystemClock;
+
 import com.android.tv.Starter;
 import com.android.tv.TvSingletons;
+
+import java.lang.reflect.Method;
 
 /** Signals the DVR to start recording shows <i>soon</i>. */
 @RequiresApi(Build.VERSION_CODES.N)
 public class DvrStartRecordingReceiver extends BroadcastReceiver {
+    private static final String TAG = "DvrStartRecordingReceiver";
+
     @Override
     public void onReceive(Context context, Intent intent) {
+        checkSystemWakeUp(context);
         Starter.start(context);
         RecordingScheduler scheduler = TvSingletons.getSingletons(context).getRecordingScheduler();
         if (scheduler != null) {
             scheduler.updateAndStartServiceIfNeeded();
         }
+    }
+
+    private void checkSystemWakeUp(Context context) {
+        PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        boolean isScreenOpen = powerManager.isScreenOn();
+        Log.d(TAG, "checkSystemWakeUp isScreenOpen = " + isScreenOpen);
+        //Resume if the system is suspending
+        if (!isScreenOpen) {
+            Log.d(TAG, "checkSystemWakeUp wakeUp the android.");
+            long time = SystemClock.uptimeMillis();
+            wakeUp(powerManager, time);
+        }
+    }
+
+    private void wakeUp(PowerManager powerManager, long time) {
+         try {
+             Class<?> cls = Class.forName("android.os.PowerManager");
+             Method method = cls.getMethod("wakeUp", long.class);
+             method.invoke(powerManager, time);
+         } catch(Exception e) {
+             e.printStackTrace();
+             Log.d(TAG, "wakeUp Exception = " + e.getMessage());
+         }
     }
 }

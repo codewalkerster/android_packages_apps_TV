@@ -127,6 +127,7 @@ public abstract class TvApplication extends BaseApplication implements TvSinglet
     private TvTime mTvTime;
     private TvControlDataManager mTvControlDataManager;
     private TvClock mTvClock;
+    private boolean mRegisterDvrBroadcast = false;
 
     @Override
     public void onCreate() {
@@ -161,6 +162,15 @@ public abstract class TvApplication extends BaseApplication implements TvSinglet
 
         Log.i(TAG, "Started Live TV " + mVersionName);
         Debug.getTimer(Debug.TAG_START_UP_TIMER).log("finish TvApplication.onCreate");
+    }
+
+    @Override
+    public void onTerminate() {
+        super.onTerminate();
+        if (mRegisterDvrBroadcast && mDvrManager != null) {
+            mRegisterDvrBroadcast = false;
+            mDvrManager.unRegisterCommandReceiver();
+        }
     }
 
     /** Initializes application. It is a noop if called twice. */
@@ -201,6 +211,8 @@ public abstract class TvApplication extends BaseApplication implements TvSinglet
                 mDvrScheduleManager = new DvrScheduleManager(this);
                 mDvrManager = new DvrManager(this);
                 mRecordingScheduler = RecordingScheduler.createScheduler(this);
+                mDvrManager.registerCommandReceiver();
+                mRegisterDvrBroadcast = false;
             }
             mEpgFetcher.startRoutineService();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O

@@ -185,4 +185,7 @@
     <color name="common_tv_background">#37474F</color>
     <!--<color name="common_tv_background">#2F4F4F</color>-->
     <color name="black_background">#000000</color>
+
+    <!-- pvr -->
+    <color name="pvr_confirm_dialog_background">#77263238</color>
 </resources>

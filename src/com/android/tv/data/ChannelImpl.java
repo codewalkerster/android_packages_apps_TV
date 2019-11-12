@@ -161,6 +161,9 @@ public final class ChannelImpl implements Channel {
             channel.mIsFavourite = TextUtils.equals(channel.mChannelInternalProviderDataMap.get(KEY_IS_FAVOURITE), "1");
             channel.mSignalType = DroidLogicTvUtils.TvString.fromString(channel.mChannelInternalProviderDataMap.get(KEY_SIGNAL_TYPE));
             channel.mIsHidden = "true".equals(channel.mChannelInternalProviderDataMap.get(KEY_HIDDEN));
+            channel.mFavInfo = channel.mChannelInternalProviderDataMap.get(KEY_FAVOURITE_INFO);
+            channel.mSatelliteInfo = channel.mChannelInternalProviderDataMap.get(KEY_SATELLITE_INFO);
+            channel.mTransponderInfo = channel.mChannelInternalProviderDataMap.get(KEY_TRANSPONDER_INFO);
         }
 
         return channel;
@@ -214,6 +217,9 @@ public final class ChannelImpl implements Channel {
     private String mServiceType;
     private boolean mIsFavourite;
     private String mSignalType;
+    private String mSatelliteInfo;
+    private String mTransponderInfo;
+    private String mFavInfo;
 
     private ChannelImpl() {
         // Do nothing.
@@ -432,6 +438,12 @@ public final class ChannelImpl implements Channel {
                 + mIsHidden
                 + ", mIsFavourite="
                 + mIsFavourite
+                + ", mFavInfo="
+                + mFavInfo
+                + ", mSatelliteInfo="
+                + mSatelliteInfo
+                + ", mTransponderInfo="
+                + mTransponderInfo
                 + ", searchable="
                 + mSearchable
                 + ", locked="
@@ -506,6 +518,9 @@ public final class ChannelImpl implements Channel {
         mIsFavourite = other.mIsFavourite;
         mSignalType = other.mSignalType;
         mIsHidden = other.mIsHidden;
+        mFavInfo = other.mFavInfo;
+        mSatelliteInfo = other.mSatelliteInfo;
+        mTransponderInfo = other.mTransponderInfo;
     }
 
     /** Creates a channel for a passthrough TV input. */
@@ -677,6 +692,21 @@ public final class ChannelImpl implements Channel {
 
         public Builder setFavourite(boolean value) {
             mChannel.mIsFavourite = value;
+            return this;
+        }
+
+        public Builder setFavouriteInfo(String value) {
+            mChannel.mFavInfo = value;
+            return this;
+        }
+
+        public Builder setSatelliteInfo(String value) {
+            mChannel.mSatelliteInfo = value;
+            return this;
+        }
+
+        public Builder setTransponderInfo(String value) {
+            mChannel.mTransponderInfo = value;
             return this;
         }
 
@@ -908,6 +938,9 @@ public final class ChannelImpl implements Channel {
     public static final String KEY_IS_FAVOURITE = "is_favourite";
     public static final String KEY_SIGNAL_TYPE = "signal_type";
     public static final String KEY_HIDDEN = "hidden";
+    public static final String KEY_FAVOURITE_INFO = "favourite_info";
+    public static final String KEY_SATELLITE_INFO = "satellite_info";
+    public static final String KEY_TRANSPONDER_INFO = "transponder_info";
 
     public Map<String, String> getChannelInternalProviderDataMap() {
         return mChannelInternalProviderDataMap;
@@ -956,7 +989,7 @@ public final class ChannelImpl implements Channel {
         JSONObject jsonObject;
         try {
             jsonObject = new JSONObject(jsonString);
-        } catch (JSONException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Json parse fail: ["+jsonString+"]" + e.getMessage());
             return null;
         }
@@ -967,7 +1000,7 @@ public final class ChannelImpl implements Channel {
             String v;
             try {
                 map.put(k, jsonObject.get(k).toString());
-            } catch (JSONException e) {
+            } catch (Exception e) {
                 Log.e(TAG, "jsonObject get fail: ["+k+"]" + e.getMessage());
                 return map;
             }
@@ -983,7 +1016,7 @@ public final class ChannelImpl implements Channel {
         JSONObject jsonObject;
         try {
             jsonObject = new JSONObject(jsonString);
-        } catch (JSONException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Json parse fail: ["+jsonString+"]" + e.getMessage());
             return null;
         }
@@ -1001,7 +1034,7 @@ public final class ChannelImpl implements Channel {
                         map.putAll(childMap);
                     }
                 }
-            } catch (JSONException e) {
+            } catch (Exception e) {
                 //Log.e(TAG, "Json get fail: ["+ k +"]" + e.getMessage());
             }
         }
@@ -1037,11 +1070,40 @@ public final class ChannelImpl implements Channel {
     }
 
     public boolean isFavourite() {
-        return mIsFavourite;
+        return mIsFavourite || hasSetFavourite();
     }
 
     public void setFavourite(boolean value) {
         mIsFavourite = value;
+    }
+
+    public boolean hasSetFavourite() {
+        boolean result = false;
+        try {
+            JSONObject obj = new JSONObject(mFavInfo);
+            if (obj != null && obj.length() > 0) {
+                result = true;
+            }
+        } catch (Exception e) {
+            Log.i(TAG, "hasSetFavourite Exception = " + e.getMessage());
+        }
+        return result;
+    }
+
+    public boolean hasSameFavouriteInfo(String favInfo) {
+        return TextUtils.equals(favInfo, mFavInfo);
+    }
+
+    public String getFavouriteInfo() {
+        return mFavInfo;
+    }
+
+    public String getSatelliteInfo() {
+        return mSatelliteInfo;
+    }
+
+    public String getTransponderInfo() {
+        return mTransponderInfo;
     }
 
     public String getSignalType() {

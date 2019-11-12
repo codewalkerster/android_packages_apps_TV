@@ -23,6 +23,7 @@ import android.graphics.drawable.Drawable;
 import android.hardware.hdmi.HdmiDeviceInfo;
 import android.media.tv.TvContentRatingSystemInfo;
 import android.media.tv.TvInputInfo;
+import android.media.tv.TvInputHardwareInfo;
 import android.media.tv.TvInputManager;
 import android.media.tv.TvInputManager.TvInputCallback;
 import android.os.Handler;
@@ -38,6 +39,9 @@ import com.android.tv.parental.ContentRatingsManager;
 import com.android.tv.parental.ParentalControlSettings;
 import com.android.tv.util.images.ImageCache;
 import com.android.tv.util.images.ImageLoader;
+import com.android.tv.TvSingletons;
+import com.droidlogic.app.tv.TvControlManager;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -116,6 +120,7 @@ public class TvInputManagerHelper {
     private static final String[] mPhysicalTunerBlackList = {
     };
     private static final String META_LABEL_SORT_KEY = "input_sort_key";
+    private static final String TV_LAUNCH_FIRST = "tv.launch.first";
 
     /** The default tv input priority to show. */
     private static final ArrayList<Integer> DEFAULT_TV_INPUT_PRIORITY = new ArrayList<>();
@@ -478,6 +483,7 @@ public class TvInputManagerHelper {
     public TvInputInfo getTvInputInfo(String inputId) {
         SoftPreconditions.checkState(
                 mStarted, TAG, "getTvInputInfo() called before TvInputManagerHelper was started.");
+
         if (!mStarted) {
             return null;
         }
@@ -492,6 +498,59 @@ public class TvInputManagerHelper {
         return info == null ? null : info.getServiceInfo().applicationInfo;
     }
 
+    /*
+     * Is the app first launched. This includes the situation where tv is booted by cec.
+     */
+    public boolean isFirstLaunch() {
+        boolean firstLaunch = TvSingletons.getSingletons(mContext).getSystemControlManager().getPropertyBoolean(TV_LAUNCH_FIRST, true);
+        Log.d(TAG, "isFirstLaunch " + firstLaunch);
+        TvSingletons.getSingletons(mContext).getSystemControlManager().setProperty(TV_LAUNCH_FIRST, "false");
+        return firstLaunch;
+    }
+
+    public TvInputInfo getCecWakeInput(TvControlManager manager) {
+        int port = manager.getCecWakePort();
+        if (port == -1) {
+            Log.d(TAG, "getCecWakeInput cec port -1");
+            return null;
+        }
+        TvInputHardwareInfo hardwareInfo = getTvInputHardwareInfo(port);
+        if (hardwareInfo == null) {
+            Log.d(TAG, "getCecWakeInput cec hardware null");
+            return null;
+        }
+        int deviceId = hardwareInfo.getDeviceId();
+        final String inputTail = "HW" + deviceId;
+        Log.d(TAG, "getCecWakeInput inputTail: " + inputTail);
+        for (TvInputInfo tvinputinfo : mInputMap.values()) {
+            String inputId = tvinputinfo.getId();
+            Log.d(TAG, "getCecWakeInput tvinputinfo:" + tvinputinfo);
+            if (inputId != null && inputId.endsWith(inputTail)) {
+                return tvinputinfo;
+            }
+        }
+        return null;
+    }
+
+    public TvInputHardwareInfo getTvInputHardwareInfo(int hdmiPort) {
+        TvInputManager tvInputManager =
+                (TvInputManager) mContext.getSystemService(Context.TV_INPUT_SERVICE);
+        if (tvInputManager == null) {
+            return null;
+        }
+        List<TvInputHardwareInfo> hardwares =  tvInputManager.getHardwareList();
+        if (hardwares == null) {
+            Log.d(TAG, "getTvInputHardwareInfo hardwares null");
+            return null;
+        }
+        for (TvInputHardwareInfo hardware : hardwares) {
+            Log.d(TAG, "getTvInputHardwareInfo hardware:" + hardware);
+            if (hardware.getHdmiPortId() == hdmiPort) {
+                return hardware;
+            }
+        }
+        return null;
+    }
     public int getTunerTvInputSize() {
         int size = 0;
         for (TvInputInfo input : mInputMap.values()) {

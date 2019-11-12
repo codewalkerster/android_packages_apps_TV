@@ -197,7 +197,13 @@ public class ListFragment extends SideFragment {
         @Override
         protected void onSelected() {
             super.onSelected();
-            getMainActivity().tuneToChannel(getMainActivity().mQuickKeyInfo.getChannelTuner().getChannelById(mTrackId));
+            if (getMainActivity().isCurrentChannelDvrRecording()) {//deal dvr recording first
+                Log.d(TAG, "check pvr status");
+                getMainActivity().CheckNeedStopDvrFragmentWhenTuneTo(getMainActivity().mQuickKeyInfo.getChannelTuner().getChannelById(mTrackId));
+                closeFragment();
+            } else {
+                getMainActivity().tuneToChannel(getMainActivity().mQuickKeyInfo.getChannelTuner().getChannelById(mTrackId));
+            }
             //closeFragment();
         }
 

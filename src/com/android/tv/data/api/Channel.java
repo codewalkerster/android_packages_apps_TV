@@ -156,4 +156,9 @@ public interface Channel {
     boolean hasSameReadWriteInfo(Channel other);
 
     boolean IsHidden();
+
+    boolean hasSameFavouriteInfo(String favInfo);
+    String getFavouriteInfo();
+    String getSatelliteInfo();
+    String getTransponderInfo();
 }

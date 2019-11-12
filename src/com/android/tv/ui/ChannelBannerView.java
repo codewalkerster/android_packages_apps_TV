@@ -362,8 +362,9 @@ public class ChannelBannerView extends FrameLayout
                     mCurrentChannel != null && mCurrentChannel.channelLogoExists();
             updateStreamInfo(null);
             updateChannelInfo();
+        } else {
+            updateProgramInfo(mMainActivity.getCurrentProgram());
         }
-        updateProgramInfo(mMainActivity.getCurrentProgram());
         mUpdateOnTune = false;
     }
 
@@ -905,8 +906,9 @@ public class ChannelBannerView extends FrameLayout
         return (recording.getType() == ScheduledRecording.TYPE_PROGRAM
                         && recording.getProgramId() == program.getId())
                 || (recording.getType() == ScheduledRecording.TYPE_TIMED
-                        && currentPosition >= recording.getStartTimeMs()
-                        && currentPosition <= recording.getEndTimeMs());
+                        /*&& currentPosition >= recording.getStartTimeMs()
+                        && currentPosition <= recording.getEndTimeMs()*/);
+        //TYPE_TIMED no need to check current time as stream card may play with a loop
     }
 
     private void setLastUpdatedProgram(Program program) {

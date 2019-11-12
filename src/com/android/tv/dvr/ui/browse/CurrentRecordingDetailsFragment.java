@@ -21,6 +21,7 @@ import android.content.res.Resources;
 import android.support.v17.leanback.widget.Action;
 import android.support.v17.leanback.widget.OnActionClickedListener;
 import android.support.v17.leanback.widget.SparseArrayObjectAdapter;
+import android.support.v17.leanback.widget.GuidedAction;
 import com.android.tv.R;
 import com.android.tv.TvSingletons;
 import com.android.tv.dialog.HalfSizedDialogFragment;
@@ -103,6 +104,12 @@ public class CurrentRecordingDetailsFragment extends RecordingDetailsFragment {
                                                 TvSingletons.getSingletons(getContext())
                                                         .getDvrManager();
                                         dvrManager.stopRecording(getRecording());
+                                        getActivity().finish();
+                                    } else if (actionId == GuidedAction.ACTION_ID_CANCEL) {
+                                        DvrManager dvrManager =
+                                                TvSingletons.getSingletons(getContext())
+                                                        .getDvrManager();
+                                        dvrManager.cancelRecording(getRecording());
                                         getActivity().finish();
                                     }
                                 }

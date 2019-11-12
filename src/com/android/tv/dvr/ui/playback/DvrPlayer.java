@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 class DvrPlayer {
     private static final String TAG = "DvrPlayer";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     /** The max rewinding speed supported by DVR player. */
     public static final int MAX_REWIND_SPEED = 256;
@@ -360,6 +360,7 @@ class DvrPlayer {
     String selectTrack(int trackType, TvTrackInfo selectedTrack) {
         String oldSelectedTrackId = getSelectedTrackId(trackType);
         String newSelectedTrackId = selectedTrack == null ? null : selectedTrack.getId();
+        Log.d(TAG, "selectTrack trackType = " + trackType + ", selectedTrack = " + selectedTrack + ", oldSelectedTrackId = " + oldSelectedTrackId + ", newSelectedTrackId = " + newSelectedTrackId);
         if (!TextUtils.equals(oldSelectedTrackId, newSelectedTrackId)) {
             if (selectedTrack == null) {
                 mTvView.selectTrack(trackType, null);
@@ -368,10 +369,12 @@ class DvrPlayer {
                 List<TvTrackInfo> tracks = mTvView.getTracks(trackType);
                 if (tracks != null && tracks.contains(selectedTrack)) {
                     mTvView.selectTrack(trackType, newSelectedTrackId);
+                    Log.d(TAG, "selectTrack newSelectedTrackId = " + newSelectedTrackId);
                     return newSelectedTrackId;
                 } else if (trackType == TvTrackInfo.TYPE_SUBTITLE && oldSelectedTrackId != null) {
                     // Track not found, disabled closed caption.
                     mTvView.selectTrack(trackType, null);
+                    Log.d(TAG, "selectTrack null");
                     return null;
                 }
             }

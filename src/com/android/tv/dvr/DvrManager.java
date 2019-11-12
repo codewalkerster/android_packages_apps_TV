@@ -37,6 +37,9 @@ import android.support.annotation.WorkerThread;
 import android.util.Log;
 import android.util.Range;
 import android.database.Cursor;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
+import android.content.IntentFilter;
 
 import com.android.tv.TvSingletons;
 import com.android.tv.common.SoftPreconditions;
@@ -53,6 +56,9 @@ import com.android.tv.dvr.data.SeriesRecording;
 import com.android.tv.util.AsyncDbTask;
 import com.android.tv.util.Utils;
 import com.android.tv.util.TvClock;
+
+import com.droidlogic.app.tv.DroidLogicTvUtils;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,6 +86,27 @@ public class DvrManager {
     private final Context mAppContext;
     private final Executor mDbExecutor;
     private final TvClock mTvClock;
+
+    private final String ACTION_REMOVE_ALL_DVR_RECORDS = DroidLogicTvUtils.ACTION_REMOVE_ALL_DVR_RECORDS;
+    private final String ACTION_DVR_RESPONSE = DroidLogicTvUtils.ACTION_DVR_RESPONSE;
+    private final String KEY_DVR_DELETE_RESULT_LIST = DroidLogicTvUtils.KEY_DVR_DELETE_RESULT_LIST;
+    private final String KEY_DTVKIT_SEARCH_TYPE = DroidLogicTvUtils.KEY_DTVKIT_SEARCH_TYPE;
+    private final String KEY_DTVKIT_SEARCH_TYPE_AUTO = DroidLogicTvUtils.KEY_DTVKIT_SEARCH_TYPE_AUTO;
+    private final String KEY_DTVKIT_SEARCH_TYPE_MANUAL = DroidLogicTvUtils.KEY_DTVKIT_SEARCH_TYPE_MANUAL;
+
+    private final BroadcastReceiver mDvrCommandReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (DEBUG) Log.d(TAG, "intent = " + (intent != null ? intent.toString() : "null"));
+            if (intent != null) {
+                if (ACTION_REMOVE_ALL_DVR_RECORDS.equals(intent.getAction())) {
+                    String searchType = intent.getStringExtra(KEY_DTVKIT_SEARCH_TYPE);
+                    boolean autoSearch = KEY_DTVKIT_SEARCH_TYPE_AUTO.equals(searchType);
+                    removeSchedulerInThread(autoSearch);
+                }
+            }
+        }
+    };
 
     public DvrManager(Context context) {
         SoftPreconditions.checkFeatureEnabled(context, CommonFeatures.DVR, TAG);
@@ -144,6 +171,129 @@ public class DvrManager {
                         // SeriesRecordingDetailsFragment.
                     }
                 });
+    }
+
+    public void registerCommandReceiver() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(ACTION_REMOVE_ALL_DVR_RECORDS);
+        mAppContext.registerReceiver(mDvrCommandReceiver, intentFilter);
+    }
+
+    public void unRegisterCommandReceiver() {
+        mAppContext.unregisterReceiver(mDvrCommandReceiver);
+    }
+
+    public void sendDvrCommandReaponse(Context context, String value) {
+        Log.d(TAG, "sendDvrCommandReaponse " + value);
+        Intent intent = new Intent(ACTION_DVR_RESPONSE);
+        intent.putExtra(ACTION_DVR_RESPONSE, value);
+        if (context != null) {
+            context.sendBroadcast(intent);
+        } else {
+            Log.d(TAG, "sendDvrCommandReaponse null context");
+        }
+    }
+
+    private void removeSchedulerInThread(final boolean autoSearch) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                removeScheduledRecordingAccordingToSearchType(autoSearch);
+            }
+        }).start();
+    }
+
+    private synchronized void removeScheduledRecordingAccordingToSearchType(boolean autoSearch) {
+        Log.d(TAG, "removeScheduledRecordingAccordingToSearchType " + autoSearch);
+        String status = "";
+        List<ScheduledRecording> notStartedScheduled = mDataManager.getNonStartedScheduledRecordings();
+        if (notStartedScheduled != null && notStartedScheduled.size() > 0) {
+            for (ScheduledRecording one : notStartedScheduled) {
+                removeScheduledRecording(one);
+            }
+            status = ",notstarted";
+        }
+        List<ScheduledRecording> startedScheduled = mDataManager.getStartedRecordings();
+        if (startedScheduled != null && startedScheduled.size() > 0) {
+            for (ScheduledRecording one : startedScheduled) {
+                cancelRecording(one);
+            }
+            status += ",started";
+        }
+        //delete all before auto search
+        if (autoSearch) {
+            List<ScheduledRecording> failedScheduled = mDataManager.getFailedScheduledRecordings();
+            if (failedScheduled != null && failedScheduled.size() > 0) {
+                for (ScheduledRecording one : failedScheduled) {
+                    removeScheduledRecording(one);
+                }
+                status += ",failed";
+            }
+            List<RecordedProgram> availableProgram = mDataManager.getRecordedPrograms();
+            if (availableProgram != null && availableProgram.size() > 0) {
+                for (RecordedProgram one : availableProgram) {
+                    removeRecordedProgram(one);
+                }
+                status += ",recorded";
+            }
+        }
+        sendDvrCommandReaponse(mAppContext, status);
+    }
+
+    public synchronized void removeInprogressRecording() {
+        Log.d(TAG, "removeInprogressRecording ");
+        List<ScheduledRecording> startedScheduled = mDataManager.getStartedRecordings();
+        if (startedScheduled != null && startedScheduled.size() > 0) {
+            for (ScheduledRecording one : startedScheduled) {
+                cancelRecording(one);
+            }
+        }
+    }
+
+    public synchronized void stopInprogressRecording() {
+        Log.d(TAG, "stopInprogressRecording ");
+        List<ScheduledRecording> startedScheduled = mDataManager.getStartedRecordings();
+        if (startedScheduled != null && startedScheduled.size() > 0) {
+            for (ScheduledRecording one : startedScheduled) {
+                stopRecording(one);
+            }
+        }
+    }
+
+    public boolean hasScheduleRecordingAvailable() {
+        boolean result = false;
+        List<ScheduledRecording> availableScheduled = mDataManager.getAvailableScheduledRecordings();
+        if (availableScheduled != null && availableScheduled.size() > 0) {
+            result = true;
+        }
+        return result;
+    }
+
+    public boolean hasInProgressScheduleRecordingAvailable() {
+        boolean result = false;
+        List<ScheduledRecording> startedScheduled = mDataManager.getStartedRecordings();
+        if (startedScheduled != null && startedScheduled.size() > 0) {
+            result = true;
+        }
+        return result;
+    }
+
+    public boolean hasRecordProgramAvailable() {
+        boolean result = false;
+        result = hasScheduleRecordingAvailable();
+        if (!result) {
+            List<ScheduledRecording> failedScheduled = mDataManager.getFailedScheduledRecordings();
+            if (failedScheduled != null && failedScheduled.size() > 0) {
+                result = true;
+                return result;
+            }
+            List<RecordedProgram> availableScheduled = mDataManager.getRecordedPrograms();
+            if (availableScheduled != null && availableScheduled.size() > 0) {
+                result = true;
+                return result;
+            }
+        }
+        return result;
     }
 
     private void createSeriesRecordingsForRecordedProgramsIfNeeded(
@@ -246,9 +396,14 @@ public class DvrManager {
     }
 
     private void addScheduleInternal(String inputId, long channelId, long startTime, long endTime) {
+        Channel channel =
+                TvSingletons.getSingletons(mAppContext)
+                        .getChannelDataManager()
+                        .getChannel(channelId);
         mDataManager.addScheduledRecording(
                 ScheduledRecording.builder(inputId, channelId, startTime, endTime)
                         .setPriority(mScheduleManager.suggestNewPriority())
+                        .setProgramTitle(channel != null ? channel.getDisplayName() : null)//use channel name to replace schedule title
                         .build());
     }
 

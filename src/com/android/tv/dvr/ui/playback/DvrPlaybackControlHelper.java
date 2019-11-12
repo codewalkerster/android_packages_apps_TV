@@ -50,7 +50,7 @@ import java.util.ArrayList;
  */
 class DvrPlaybackControlHelper extends PlaybackControlGlue {
     private static final String TAG = "DvrPlaybackControlHelpr";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static final int AUDIO_ACTION_ID = 1001;
 
@@ -67,9 +67,11 @@ class DvrPlaybackControlHelper extends PlaybackControlGlue {
     private final MultiAction mClosedCaptioningAction;
     private final MultiAction mMultiAudioAction;
     private ArrayObjectAdapter mSecondaryActionsAdapter;
+    private Activity mActivity;
 
     DvrPlaybackControlHelper(Activity activity, DvrPlaybackOverlayFragment overlayFragment) {
         super(activity, new int[TimeShiftUtils.MAX_SPEED_LEVEL + 1]);
+        mActivity = activity;
         mFragment = overlayFragment;
         mMediaController = activity.getMediaController();
         mMediaController.registerCallback(mMediaControllerCallback);
@@ -344,11 +346,38 @@ class DvrPlaybackControlHelper extends PlaybackControlGlue {
         onStateChanged();
     }
 
+    public static final String STATUS_SET_TELETEXT = "set_teletext";
+    public static final String STATUS_SET_TELETEXT_IN_SUB = "set_teletext_in_sub";
+
+    public interface TeletextControlCallback {
+        void onTeletextControlCallback(String status);
+    };
+
+    private TeletextControlCallback mTeletextControlCallback = new TeletextControlCallback() {
+        @Override
+        public void onTeletextControlCallback(String status) {
+            Log.d(TAG, "onTeletextControlCallback " + status);
+            switch (status) {
+                case STATUS_SET_TELETEXT:
+                case STATUS_SET_TELETEXT_IN_SUB:
+                    if (mActivity != null && mActivity instanceof DvrPlaybackActivity) {
+                        ((DvrPlaybackActivity)mActivity).showTeleTextAdvancedSettings();
+                    } else {
+                        Log.d(TAG, "onTeletextControlCallback setTeletext fail");
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
     private void showSideFragment(ArrayList<TvTrackInfo> trackInfos, String selectedTrackId) {
         Bundle args = new Bundle();
         args.putParcelableArrayList(DvrPlaybackSideFragment.TRACK_INFOS, trackInfos);
         args.putString(DvrPlaybackSideFragment.SELECTED_TRACK_ID, selectedTrackId);
         DvrPlaybackSideFragment sideFragment = new DvrPlaybackSideFragment();
+        sideFragment.setTeletextControlCallback(mTeletextControlCallback);
         sideFragment.setArguments(args);
         mFragment
                 .getFragmentManager()

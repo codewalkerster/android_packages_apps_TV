@@ -384,6 +384,7 @@ public class KeypadChannelSwitchView extends LinearLayout
     }
 
     private void  tuneToTypedNumber() {
+        Log.d(TAG, "tuneToTypedNumber mChannels size = " + (mChannels != null ? mChannels.size() : "null"));
         for (Channel channel : mChannels) {
             ChannelNumber chNumber = ChannelNumber.parseChannelNumber(channel.getDisplayNumber());
             if (chNumber == null) {
@@ -391,12 +392,22 @@ public class KeypadChannelSwitchView extends LinearLayout
             }
             if (mTypedChannelNumber.equals(chNumber)) {
                 mSelectedChannel = channel;
+                Log.d(TAG, "tuneToTypedNumber matched " + mSelectedChannel);
+                break;
+            } else {
+                Log.d(TAG, "tuneToTypedNumber not matched");
             }
         }
         cancelHide();
         mMainActivity.getOverlayManager().hideOverlays(TvOverlayManager.FLAG_HIDE_OVERLAYS_WITHOUT_ANIMATION);
         if (mSelectedChannel != null) {
-            mMainActivity.tuneToChannel(mSelectedChannel);
+            if (mMainActivity.isCurrentChannelDvrRecording()) {//deal dvr recording first
+                Log.d(TAG, "tuneToTypedNumber check pvr status");
+                mMainActivity.CheckNeedStopDvrFragmentWhenTuneTo(mSelectedChannel);
+            } else {
+                Log.d(TAG, "tuneToTypedNumber tune mSelectedChannel");
+                mMainActivity.tuneToChannel(mSelectedChannel);
+            }
         } else if (!TextUtils.isEmpty(mTypedChannelNumber.majorNumber)) {
             mMainActivity.mQuickKeyInfo.doNumberSearch(mTypedChannelNumber);
         }

@@ -67,6 +67,8 @@ import com.android.tv.dvr.ui.DvrHalfSizedDialogFragment.DvrProgramConflictDialog
 import com.android.tv.dvr.ui.DvrHalfSizedDialogFragment.DvrScheduleDialogFragment;
 import com.android.tv.dvr.ui.DvrHalfSizedDialogFragment.DvrSmallSizedStorageErrorDialogFragment;
 import com.android.tv.dvr.ui.DvrHalfSizedDialogFragment.DvrStopRecordingDialogFragment;
+import com.android.tv.dvr.ui.DvrHalfSizedDialogFragment.DvrStopOrContinueRecordingDialogFragment;
+import com.android.tv.dvr.ui.DvrHalfSizedDialogFragment.DvrInprogressScheduleConfirmDialogFragment;
 import com.android.tv.dvr.ui.browse.DvrBrowseActivity;
 import com.android.tv.dvr.ui.browse.DvrDetailsActivity;
 import com.android.tv.dvr.ui.list.DvrHistoryActivity;
@@ -237,6 +239,35 @@ public class DvrUiHelper {
         showDialogFragment(activity, fragment, args);
     }
 
+    /** Shows stop or continue recording dialog when switch new channel. */
+    public static void showStopOrContinueRecordingDialog(
+            Activity activity,
+            long channelId,
+            int reason,
+            HalfSizedDialogFragment.OnActionClickListener listener) {
+        Bundle args = new Bundle();
+        args.putLong(DvrHalfSizedDialogFragment.KEY_CHANNEL_ID, channelId);
+        args.putInt(DvrStopOrContinueRecordingFragment.KEY_REASON, reason);
+        DvrHalfSizedDialogFragment fragment = new DvrStopOrContinueRecordingDialogFragment();
+        fragment.setOnActionClickListener(listener);
+        showDialogFragment(activity, fragment, args);
+    }
+
+    /** Shows stop recording dialog when switch new channel. */
+    public static void showStopOrContinueRecordingDialog(
+            Activity activity,
+            long channelId,
+            int reason,
+            HalfSizedDialogFragment.OnActionClickListener listener, SafeDismissDialogFragment.DismissListener dislistener) {
+        Bundle args = new Bundle();
+        args.putLong(DvrHalfSizedDialogFragment.KEY_CHANNEL_ID, channelId);
+        args.putInt(DvrStopOrContinueRecordingFragment.KEY_REASON, reason);
+        DvrHalfSizedDialogFragment fragment = new DvrStopOrContinueRecordingDialogFragment();
+        fragment.setOnActionClickListener(listener);
+        fragment.setDismissListener(dislistener);
+        showDialogFragment(activity, fragment, args);
+    }
+
     /** Shows "already scheduled" dialog. */
     public static void showAlreadyScheduleDialog(Activity activity, Program program) {
         if (program == null) {
@@ -265,6 +296,12 @@ public class DvrUiHelper {
         Bundle args = new Bundle();
         args.putParcelable(DvrHalfSizedDialogFragment.KEY_PROGRAM, program);
         showDialogFragment(activity, new DvrFutureProgramInfoDialogFragment(), args, false, true);
+    }
+
+    /** Shows Inprogress Schedule Confirm dialog. */
+    public static void showInprogressScheduleConfirmDialog(Activity activity) {
+        Bundle args = new Bundle();
+        showDialogFragment(activity, new DvrInprogressScheduleConfirmDialogFragment(), args, false, true);
     }
 
     /**
@@ -298,11 +335,14 @@ public class DvrUiHelper {
      * @param addProgramToSeries denotes whether the program to be recorded should be added into the
      *     series recording when users choose to record the entire series.
      */
-    public static void requestRecordingFutureProgram(
+    public static boolean requestRecordingFutureProgram(
             Activity activity, Program program, boolean addProgramToSeries) {
         if (DvrUiHelper.handleCreateSchedule(activity, program, addProgramToSeries)) {
             String msg = activity.getString(R.string.dvr_msg_program_scheduled, program.getTitle());
             ToastUtils.show(activity, msg, Toast.LENGTH_SHORT);
+            return true;
+        } else {
+            return false;
         }
     }
 

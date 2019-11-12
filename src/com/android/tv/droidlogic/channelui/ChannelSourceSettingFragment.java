@@ -88,6 +88,13 @@ public class ChannelSourceSettingFragment extends SideFragment {
                 }
              }
         });
+        mActionItems.add(new ActionItem(getString(R.string.channels_item_dvr), null) {
+            @Override
+            protected void onSelected() {
+                //show dvr manager
+                getMainActivity().getOverlayManager().showDvrManager();
+            }
+        });
         mActionItems.add(new SubMenuItem(getString(R.string.channel_channel_edit),
                 null, getMainActivity().getOverlayManager().getSideFragmentManager()) {
             @Override

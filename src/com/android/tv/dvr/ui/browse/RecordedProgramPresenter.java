@@ -148,9 +148,15 @@ public class RecordedProgramPresenter extends DvrItemPresenter<RecordedProgram> 
     }
 
     private String generateMinorContent(RecordedProgram program) {
-        int durationMinutes = Math.max(1, Utils.getRoundOffMinsFromMs(program.getDurationMillis()));
-        return mContext.getResources()
+        //int durationMinutes = Math.max(1, Utils.getRoundOffMinsFromMs(program.getDurationMillis()));
+        //add hour minute and second display
+        int durationSeconds = (int)(program.getDurationMillis() / 1000l);
+        int hour = (int)(durationSeconds / 3600l);
+        int minute = (int)(durationSeconds % 3600l / 60l);
+        int second = (int)(durationSeconds % 60l);
+        /*return String minuteStr =  mContext.getResources()
                 .getQuantityString(
-                        R.plurals.dvr_program_duration, durationMinutes, durationMinutes);
+                        R.plurals.dvr_program_duration, durationMinutes, durationMinutes);*/
+        return mContext.getResources().getString(R.string.dvr_program_duration_total, hour, minute, second);
     }
 }

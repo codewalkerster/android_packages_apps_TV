@@ -24,6 +24,7 @@ import android.os.Message;
 import android.support.annotation.VisibleForTesting;
 import android.util.ArrayMap;
 import android.util.Log;
+import android.text.TextUtils;
 import android.util.LongSparseArray;
 import com.android.tv.InputSessionManager;
 import com.android.tv.common.util.Clock;
@@ -34,17 +35,24 @@ import com.android.tv.dvr.DvrManager;
 import com.android.tv.dvr.WritableDvrDataManager;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.util.CompositeComparator;
+import com.android.tv.util.Utils;
+import com.android.tv.droidlogic.CustomDialog;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /** The scheduler for a TV input. */
 public class InputTaskScheduler {
     private static final String TAG = "InputTaskScheduler";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static final int MSG_ADD_SCHEDULED_RECORDING = 1;
     private static final int MSG_REMOVE_SCHEDULED_RECORDING = 2;
@@ -61,6 +69,53 @@ public class InputTaskScheduler {
                     RecordingTask.PRIORITY_COMPARATOR,
                     RecordingTask.END_TIME_COMPARATOR,
                     RecordingTask.ID_COMPARATOR);
+
+    private CustomDialog mCustomDialog;
+    private CustomDialog.ActionCallback mActionCallback = new CustomDialog.ActionCallback() {
+        @Override
+        public void onActionBack(String json, Object obj) {
+            if (!TextUtils.isEmpty(json)) {
+                JSONObject jsonObj = null;
+                try {
+                    Log.i(TAG, "onActionBack json:" + json);
+                    jsonObj = new JSONObject(json);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Log.i(TAG, "onActionBack parse Exception json:" + json);
+                }
+                if (jsonObj != null && jsonObj.length() > 0) {
+                    try {
+                        String actionType = jsonObj.getString(CustomDialog.TYPE_ACTION_KEY);
+                        if (CustomDialog.TYPE_ACTION_KEY_PVR_CONFIRM.equals(actionType)) {
+                            ScheduledRecording scheduler = (ScheduledRecording)obj;
+                            if (scheduler != null) {
+                                dealPvrConfirm(jsonObj.getString(CustomDialog.ACTION_KEY_PVR_CONFIRM_ACTION), scheduler);
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Log.i(TAG, "onActionBack Exception json:" + json);
+                    }
+                }
+            }
+        }
+    };
+
+    private void dealPvrConfirm(String action, ScheduledRecording scheduler) {
+        switch (action) {
+            case CustomDialog.ACTION_PVR_CONFIRM_TIMEOUT:
+            case CustomDialog.ACTION_PVR_CONFIRM_RECORD:
+                Log.d(TAG, "dealPvrConfirm record");
+                createRecordingTask(scheduler).start();
+                break;
+            case CustomDialog.ACTION_PVR_CONFIRM_CANCEL:
+                Log.d(TAG, "dealPvrConfirm cancel");
+                mDvrManager.removeScheduledRecording(scheduler);
+                break;
+            default:
+                break;
+        }
+    }
 
     /** Returns the comparator which the schedules are sorted with when executed. */
     public static Comparator<ScheduledRecording> getRecordingOrderComparator() {
@@ -179,17 +234,21 @@ public class InputTaskScheduler {
                             }
                         };
         mHandler = new WorkerThreadHandler(looper);
+        mCustomDialog = new CustomDialog(mContext);
     }
 
     /** Adds a {@link ScheduledRecording}. */
     public void addSchedule(ScheduledRecording schedule) {
+        if (DEBUG) Log.d(TAG, "addSchedule " + Arrays.asList(schedule));
         mHandler.sendMessage(mHandler.obtainMessage(MSG_ADD_SCHEDULED_RECORDING, schedule));
     }
 
     @VisibleForTesting
     void handleAddSchedule(ScheduledRecording schedule) {
+        if (DEBUG) Log.d(TAG, "handleAddSchedule " + Arrays.asList(schedule));
         if (mPendingRecordings.get(schedule.getId()) != null
                 || mWaitingSchedules.containsKey(schedule.getId())) {
+            if (DEBUG) Log.d(TAG, "handleAddSchedule return");
             return;
         }
         mWaitingSchedules.put(schedule.getId(), schedule);
@@ -199,6 +258,7 @@ public class InputTaskScheduler {
 
     /** Removes the {@link ScheduledRecording}. */
     public void removeSchedule(ScheduledRecording schedule) {
+        if (DEBUG) Log.d(TAG, "removeSchedule " + Arrays.asList(schedule));
         mHandler.sendMessage(mHandler.obtainMessage(MSG_REMOVE_SCHEDULED_RECORDING, schedule));
     }
 
@@ -218,11 +278,13 @@ public class InputTaskScheduler {
 
     /** Updates the {@link ScheduledRecording}. */
     public void updateSchedule(ScheduledRecording schedule) {
+        if (DEBUG) Log.d(TAG, "updateSchedule " + Arrays.asList(schedule));
         mHandler.sendMessage(mHandler.obtainMessage(MSG_UPDATE_SCHEDULED_RECORDING, schedule));
     }
 
     @VisibleForTesting
     void handleUpdateSchedule(ScheduledRecording schedule) {
+        if (DEBUG) Log.d(TAG, "handleUpdateSchedule " + Arrays.asList(schedule));
         HandlerWrapper wrapper = mPendingRecordings.get(schedule.getId());
         if (wrapper != null) {
             if (schedule.getStartTimeMs() > mClock.currentTimeMillis()
@@ -258,6 +320,7 @@ public class InputTaskScheduler {
     }
 
     private void handleStopSchedule() {
+        if (DEBUG) Log.d(TAG, "handleStopSchedule");
         mWaitingSchedules.clear();
         int size = mPendingRecordings.size();
         for (int i = 0; i < size; ++i) {
@@ -268,6 +331,7 @@ public class InputTaskScheduler {
 
     @VisibleForTesting
     void handleBuildSchedule() {
+        if (DEBUG) Log.d(TAG, "handleBuildSchedule");
         if (mWaitingSchedules.isEmpty()) {
             return;
         }
@@ -316,7 +380,16 @@ public class InputTaskScheduler {
             }
             if (mPendingRecordings.size() < tunerCount) {
                 // Tuners available.
-                createRecordingTask(schedule).start();
+                if (DEBUG) Log.d(TAG,"handleBuildSchedule createRecordingTask");
+                if (schedule.getProgramId() == ScheduledRecording.ID_NOT_SET) {
+                    createRecordingTask(schedule).start();//deal channel record only
+                } else if (mCustomDialog != null) {
+                    if (!mCustomDialog.hasRelatedDialog(schedule)) {
+                        mCustomDialog.showConfirmRecord(null, schedule, mActionCallback);//appoint program need confirm
+                    } else {
+                        if (DEBUG) Log.d(TAG,"handleBuildSchedule mCustomDialog has displayed same schedule confirm ui");
+                    }
+                }
                 mWaitingSchedules.remove(schedule.getId());
             } else {
                 // No available tuners.
@@ -335,6 +408,8 @@ public class InputTaskScheduler {
         long earliest = Long.MAX_VALUE;
         for (ScheduledRecording schedule : mWaitingSchedules.values()) {
             // The conflicting schedules will be removed if they end before conflicting resolved.
+            if (DEBUG) Log.d(TAG, "handleBuildSchedule schedule start = " + Utils.toTimeString(schedule.getStartTimeMs
+                ()) + ", ends = " + Utils.toTimeString(schedule.getEndTimeMs()));
             if (schedulesToStart.contains(schedule)) {
                 if (earliest > schedule.getEndTimeMs()) {
                     earliest = schedule.getEndTimeMs();
@@ -349,6 +424,7 @@ public class InputTaskScheduler {
                 }
             }
         }
+        if (DEBUG) Log.d(TAG, "handleBuildSchedule earliest = " + Utils.toTimeString(earliest) + ", currentTimeMs = " + Utils.toTimeString(currentTimeMs));
         mHandler.sendEmptyMessageDelayed(MSG_BUILD_SCHEDULE, earliest - currentTimeMs);
     }
 

@@ -55,7 +55,7 @@ import android.provider.Settings;
 @MainThread
 public class ChannelTuner {
     private static final String TAG = "ChannelTuner";
-    private static final String BROADCAST_SKIP_ALL_CHANNEL = "android.action.skip.all.channels";
+    private static final String BROADCAST_SKIP_ALL_CHANNELS = "android.action.skip.all.channels";
 
     private boolean mStarted;
     private boolean mChannelDataManagerLoaded;
@@ -155,6 +155,10 @@ public class ChannelTuner {
 
     public List<Channel> getAllChannelList() {
         return Collections.unmodifiableList(mChannels);
+    }
+
+    public int getAllChannelListCount() {
+        return mChannels.size();
     }
 
     /** Returns the number of browsable channels. */
@@ -474,7 +478,7 @@ public class ChannelTuner {
         if (!Utils.isCurrentDeviceIdPassthrough(mContext)) {
             if (mBrowsableChannels.size() == 0 ) {
                 Intent intent = new Intent();
-                intent.setAction(BROADCAST_SKIP_ALL_CHANNEL);
+                intent.setAction(BROADCAST_SKIP_ALL_CHANNELS);
                 mContext.sendBroadcast(intent);
             } else {
                 Log.d(TAG, "mBrowsableChannels.size(): " + mBrowsableChannels.size());

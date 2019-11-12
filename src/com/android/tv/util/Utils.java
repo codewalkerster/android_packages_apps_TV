@@ -43,6 +43,8 @@ import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
 import android.util.ArraySet;
+import android.os.Bundle;
+
 import com.android.tv.R;
 import com.android.tv.TvSingletons;
 import com.android.tv.MainActivity;
@@ -125,6 +127,9 @@ public class Utils {
     // Bundled (system) inputs not in the list will get the high priority
     // so they and their channels come first in the UI.
     private static final Set<String> BUNDLED_PACKAGE_SET = new ArraySet<>();
+
+    //add for customed need
+    public static final String KEY_AUDIO_CODES_DES = "audio_codes";
 
     //for TvClock
     private static TvClock mClock;
@@ -660,9 +665,42 @@ public class Utils {
             Log.d(TAG, "No language information found for the audio track: " + track);
         }
         String audioformat = ((MainActivity)context).mQuickKeyInfo.getAudioFormat(true, track);
-        if (!TextUtils.isEmpty(audioformat) && (audioformat.equals("AC3") || audioformat.equals("EAC3"))) {
+        Bundle audioBundle = track.getExtra();
+        String audioCodes = null;
+        if (audioBundle != null) {
+            audioCodes = audioBundle.getString(KEY_AUDIO_CODES_DES, null);
+        }
+        if (!TextUtils.isEmpty(audioCodes)) {
+            audioformat = audioCodes;
+        }
+        if (!TextUtils.isEmpty(audioformat) && ("AC3".equalsIgnoreCase(audioformat) || "EAC3".equalsIgnoreCase(audioformat))) {
             audioformat = AUDIO_FORMAT_DD;
         }
+
+        return context.getString(
+                R.string.multi_audio_display_string_with_channel, language, audioformat);
+    }
+
+    public static String getTrackInfoFormat(Context context, TvTrackInfo track) {
+        String language = context.getString(R.string.multi_audio_unknown_language);
+        if (!TextUtils.isEmpty(track.getLanguage())) {
+            language = new Locale(track.getLanguage()).getDisplayName();
+        } else {
+            Log.d(TAG, "No language information found for the audio track: " + track);
+        }
+        String audioformat = null;
+        Bundle audioBundle = track.getExtra();
+        String audioCodes = null;
+        if (audioBundle != null) {
+            audioCodes = audioBundle.getString(KEY_AUDIO_CODES_DES, null);
+        }
+        if (!TextUtils.isEmpty(audioCodes)) {
+            audioformat = audioCodes;
+        }
+        if (!TextUtils.isEmpty(audioformat) && ("AC3".equalsIgnoreCase(audioformat) || "EAC3".equalsIgnoreCase(audioformat))) {
+            audioformat = AUDIO_FORMAT_DD;
+        }
+
         return context.getString(
                 R.string.multi_audio_display_string_with_channel, language, audioformat);
     }

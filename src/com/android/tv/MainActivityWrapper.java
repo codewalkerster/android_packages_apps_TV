@@ -37,7 +37,7 @@ public final class MainActivityWrapper {
      * Returns the current main activity. <b>WARNING</b> do not keep a reference to MainActivity,
      * leaking activities is expensive.
      */
-    MainActivity getMainActivity() {
+    public MainActivity getMainActivity() {
         return mActivity;
     }
 

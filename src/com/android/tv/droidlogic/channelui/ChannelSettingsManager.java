@@ -41,6 +41,7 @@ import com.droidlogic.app.SystemControlManager;
 import com.droidlogic.app.tv.TvControlManager;
 import com.droidlogic.app.tv.DroidLogicTvUtils;
 import com.droidlogic.app.tv.TvControlDataManager;
+import com.droidlogic.app.tv.TvChannelSetting;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,6 +51,11 @@ public class ChannelSettingsManager {
     private final static boolean DEBUG = true;
     private Resources mResources;
     private Context mContext;
+
+    public static final String DTVKIT_PACKAGE = "org.dtvkit.inputsource";
+    public static final String KEY_INFO_ITEM = "item_key";
+    public static final String VALUE_STRENGTH = "strength";
+    public static final String VALUE_QUALITY = "quality";
 
     //channel info
     public static final String STRING_NAME = "name";
@@ -66,6 +72,7 @@ public class ChannelSettingsManager {
     private ArrayList<ChannelInfo> videoChannelList;
     private ArrayList<ChannelInfo> radioChannelList;
     private int mStrength;
+    private int mQuality;
 
     private TvDataBaseManager mTvDataBaseManager;
     private SystemControlManager mSystemControlManager;
@@ -119,9 +126,11 @@ public class ChannelSettingsManager {
             }
         }
         if (mCurrentChannel != null) {
+            String inputId = mCurrentChannel.getInputId();
+            boolean isDtvKitChannel = inputId != null && inputId.startsWith(DTVKIT_PACKAGE);
             HashMap<String, String> item = new HashMap<String, String>();
             item.put(STRING_NAME, mResources.getString(R.string.channel_info_channel));
-            item.put(STRING_STATUS, mCurrentChannel.getDisplayNameLocal());
+            item.put(STRING_STATUS, mCurrentChannel.getDisplayName());
             list.add(item);
 
             item = new HashMap<String, String>();
@@ -129,21 +138,30 @@ public class ChannelSettingsManager {
             item.put(STRING_STATUS, Integer.toString(mCurrentChannel.getFrequency() + mCurrentChannel.getFineTune()));
             list.add(item);
 
-            if (mCurrentChannel.isDigitalChannel()) {
-                if (mStrength > 0 && mStrength < 100) {
+            if (mCurrentChannel.isDigitalChannel() || isDtvKitChannel) {
+                if (mStrength > 0 && mStrength <= 100) {
                     item = new HashMap<String, String>();
                     item.put(STRING_NAME, mResources.getString(R.string.channel_info_strength));
                     item.put(STRING_STATUS, mStrength + "%");
+                    item.put(KEY_INFO_ITEM, VALUE_STRENGTH);
                     list.add(item);
                 } else {
                     item = new HashMap<String, String>();
                     item.put(STRING_NAME, mResources.getString(R.string.channel_info_strength));
-                    item.put(STRING_STATUS, "0.0%");
+                    item.put(STRING_STATUS, "0%");
+                    item.put(KEY_INFO_ITEM, VALUE_STRENGTH);
+                    list.add(item);
+                }
+                if (isDtvKitChannel) {
+                    item = new HashMap<String, String>();
+                    item.put(STRING_NAME, mResources.getString(R.string.channel_info_quality));
+                    item.put(STRING_STATUS, mQuality + "%");
+                    item.put(KEY_INFO_ITEM, VALUE_QUALITY);
                     list.add(item);
                 }
             //Toast.makeText(mContext, Integer.toString(mStrength), Toast.LENGTH_SHORT).show();
             }
-            if (tvSource == TvControlManager.SourceInput_Type.SOURCE_TYPE_DTV) {
+            if (tvSource == TvControlManager.SourceInput_Type.SOURCE_TYPE_DTV || isDtvKitChannel) {
                 item = new HashMap<String, String>();
                 item.put(STRING_NAME, mResources.getString(R.string.channel_info_type));
                 item.put(STRING_STATUS, mCurrentChannel.getType());
@@ -153,11 +171,12 @@ public class ChannelSettingsManager {
                 item.put(STRING_NAME, mResources.getString(R.string.channel_info_service_id));
                 item.put(STRING_STATUS, Integer.toString(mCurrentChannel.getServiceId()));
                 list.add(item);
-
-                item = new HashMap<String, String>();
-                item.put(STRING_NAME, mResources.getString(R.string.channel_info_pcr_id));
-                item.put(STRING_STATUS, Integer.toString(mCurrentChannel.getPcrPid()));
-                list.add(item);
+                if (!isDtvKitChannel) {
+                    item = new HashMap<String, String>();
+                    item.put(STRING_NAME, mResources.getString(R.string.channel_info_pcr_id));
+                    item.put(STRING_STATUS, Integer.toString(mCurrentChannel.getPcrPid()));
+                    list.add(item);
+                }
             }
         }
         return list;
@@ -386,40 +405,17 @@ public class ChannelSettingsManager {
         }
     }
 
-    public int convertAtvVideoStd(int curVideoStd, int videoStdUI) {
-        switch (videoStdUI) {
-            case TvControlManager.ATV_VIDEO_STD_PAL:
-                return ((curVideoStd & 0x00FFFFFF) | TvControlManager.V4L2_COLOR_STD_PAL);
-            case TvControlManager.ATV_VIDEO_STD_NTSC:
-                return ((curVideoStd & 0x00FFFFFF) | TvControlManager.V4L2_COLOR_STD_NTSC);
-            case TvControlManager.ATV_VIDEO_STD_SECAM:
-                return ((curVideoStd & 0x00FFFFFF) | TvControlManager.V4L2_COLOR_STD_SECAM);
-            default:
-                break;
-        }
-        return 0;
-    }
-
     public void setChannelVideo (int mode) {
         if (mCurrentChannel != null) {
-            mCurrentChannel.print();
-            mCurrentChannel.setVideoStd(mode);
-            mCurrentChannel.setVfmt(convertAtvVideoStd(mCurrentChannel.getVfmt(), mode));
+            TvChannelSetting.setAtvChannelVideo(mCurrentChannel, mode);
             mTvDataBaseManager.updateChannelInfo(mCurrentChannel);
-            Log.d(TAG, "setChannelVideo updateChannelInfo videoStd: " + mCurrentChannel.getVideoStd());
-            mTvControlManager.SetFrontendParms(TvControlManager.tv_fe_type_e.TV_FE_ANALOG, mCurrentChannel.getFrequency(),
-                mCurrentChannel.getVideoStd(), mCurrentChannel.getAudioStd(), mCurrentChannel.getVfmt(), mCurrentChannel.getAudioOutPutMode(), 0, 0);
         }
     }
 
     public void setChannelAudio (int mode) {
         if (mCurrentChannel != null) {
-            mCurrentChannel.print();
-            mCurrentChannel.setAudioStd(mode);
+            TvChannelSetting.setAtvChannelAudio(mCurrentChannel, mode);
             mTvDataBaseManager.updateChannelInfo(mCurrentChannel);
-            Log.d(TAG, "setChannelAudio updateChannelInfo audioStd: " + mCurrentChannel.getAudioStd());
-            mTvControlManager.SetFrontendParms(TvControlManager.tv_fe_type_e.TV_FE_ANALOG, mCurrentChannel.getFrequency(),
-                mCurrentChannel.getVideoStd(), mCurrentChannel.getAudioStd(), mCurrentChannel.getVfmt(), mCurrentChannel.getAudioOutPutMode(), 0, 0);
         }
     }
 
@@ -447,12 +443,12 @@ public class ChannelSettingsManager {
         }
         ChannelInfo channel = getChannelInfoById(channelid);
         if (ChannelInfo.isSameChannel(channel, mCurrentChannel)) {
-            mCurrentChannel.setDisplayNameLocal(targetName);
+            mCurrentChannel.setDisplayName(targetName);
         }
         if (channel != null) {
-            channel.setDisplayName(targetName);
+            mTvDataBaseManager.updateSingleChannelInternalProviderData(channelid, ChannelInfo.KEY_SET_DISPLAYNAME, "1");
+            mTvDataBaseManager.updateSingleColumn(channelid, TvContract.Channels.COLUMN_DISPLAY_NAME, targetName);
         }
-        mTvDataBaseManager.setChannelName(channel, targetName);
     }
 
     public void skipChannel (long channelid) {
@@ -643,20 +639,18 @@ public class ChannelSettingsManager {
 
     public void setFineTune(int finetune) {
         if (mCurrentChannel != null) {
-            if (DEBUG) Log.d(TAG, "setFineTune = " + finetune);
-            mCurrentChannel.setFinetune(finetune);
+            TvChannelSetting.setAtvFineTune(mCurrentChannel, finetune);
             mTvDataBaseManager.updateChannelInfo(mCurrentChannel);
-            mTvControlManager.SetFrontendParms(TvControlManager.tv_fe_type_e.TV_FE_ANALOG,
-                                               mCurrentChannel.getFrequency() + mCurrentChannel.getFineTune(),
-                                               mCurrentChannel.getVideoStd(), mCurrentChannel.getAudioStd(),
-                                               mCurrentChannel.getVfmt(),
-                                               mCurrentChannel.getAudioOutPutMode(),
-                                               0, 0);
         }
     }
 
     public void updateChannelOrder(ChannelInfo channel) {
         if (DEBUG) Log.d(TAG, "updateChannelOrder number: " + channel.getDisplayNumber() + " ,name: " + channel.getDisplayName());
-        mTvDataBaseManager.updateChannelInfo(channel);
+        if (channel.isOtherChannel()) {
+            mTvDataBaseManager.updateSingleChannelInternalProviderData(channel.getId(), ChannelInfo.KEY_SET_DISPLAYNUMBER, "1");
+            mTvDataBaseManager.updateSingleColumn(channel.getId(), TvContract.Channels.COLUMN_DISPLAY_NUMBER, channel.getDisplayNumber());
+        } else {
+            mTvDataBaseManager.updateChannelInfo(channel);
+        }
     }
 }

@@ -59,7 +59,9 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.provider.Settings;
 import android.content.ActivityNotFoundException;
+import android.widget.Toast;
 
+import com.android.tv.common.util.SystemProperties;
 import com.android.tv.InputSessionManager;
 import com.android.tv.InputSessionManager.TvViewSession;
 import com.android.tv.R;
@@ -87,6 +89,7 @@ import com.android.tv.util.Utils;
 import com.android.tv.util.images.ImageLoader;
 import com.android.tv.MainActivity;
 import com.android.tv.data.Program;
+import com.android.tv.droidlogic.QuickKeyInfo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -122,6 +125,11 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
 
     public static final String PI_FORMAT_KEY = "pi_format";
     public static final String EVENT_STREAM_PI_FORMAT  = "event_pi_format";//add for dtvkit
+    public static final String EVENT_RESOURCE_BUSY = "event_resource_busy";
+    public static final String EVENT_SIGNAL_INFO = "event_signal_info";
+    public static final String KEY_INFO = "info";
+    public static final String KEY_SIGNAL_STRENGTH = "signal_strength";
+    public static final String KEY_SIGNAL_QUALITY = "signal_quality";
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
@@ -160,6 +168,8 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
     private int mVideoHeight;
     private int mVideoFormat = StreamInfo.VIDEO_DEFINITION_LEVEL_UNKNOWN;
     private String mVideoPiFormat = "";
+    private int mSingalStrength = 0;
+    private int mSingalQuality = 0;
     private float mVideoFrameRate;
     private float mVideoDisplayAspectRatio;
     private int mAudioChannelCount = StreamInfo.AUDIO_CHANNEL_COUNT_UNKNOWN;
@@ -527,6 +537,28 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
                                 Log.d(TAG, "onEvent realtimeFormat null");
                             }
                         }
+                    } else if (eventType.equals(TvView.EVENT_TUNE_FINISHED)) {
+                        if (SystemProperties.USE_DEBUG_TUNE_CONTROL.getValue() && mMainActivity != null) {
+                            mMainActivity.sendSecondTuneStage();
+                        }
+                    } else if (eventType.equals(EVENT_RESOURCE_BUSY)) {
+                        if (eventArgs != null) {
+                            String info = eventArgs.getString(KEY_INFO, null);
+                            if (DEBUG) {
+                                Log.d(TAG, "EVENT_RESOURCE_BUSY info = " + info);
+                            }
+                            if (info != null) {
+                                Toast.makeText(mMainActivity, info, Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    } else if (eventType.equals(EVENT_SIGNAL_INFO)) {
+                        if (eventArgs != null) {
+                            mSingalStrength = eventArgs.getInt(KEY_SIGNAL_STRENGTH, 0);
+                            mSingalQuality = eventArgs.getInt(KEY_SIGNAL_QUALITY, 0);
+                            if (DEBUG) {
+                                Log.d(TAG, "EVENT_SIGNAL_INFO mSingalStrength = " + mSingalStrength + ", mSingalQuality = " + mSingalQuality);
+                            }
+                        }
                     }
                 }
             };
@@ -784,6 +816,8 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
         mVideoFrameRate = 0f;
         mVideoDisplayAspectRatio = 0f;
         mVideoPiFormat = "";
+        mSingalStrength = 0;
+        mSingalQuality = 0;
         mAudioChannelCount = StreamInfo.AUDIO_CHANNEL_COUNT_UNKNOWN;
         mHasClosedCaption = false;
         //keep last rating as may show previous video before next channel video display
@@ -802,17 +836,20 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
             mBlockedContentRating = null;
         }
 
+        boolean newScreenBlocked = mScreenBlocked;
         if (mMainActivity.mQuickKeyInfo.getPropertyBoolean(DroidLogicTvUtils.TV_CURRENT_CHANNELBLOCK_STATUS, false)) {
             if (mCurrentChannel != null && mCurrentChannel.isLocked()) {
-                mScreenBlocked = true;
+                newScreenBlocked = true;
             } else {
-                mScreenBlocked = false;
+                newScreenBlocked = false;
                 needSendStatus = true;
             }
         } else {
-            mScreenBlocked = false;
+            newScreenBlocked = false;
         }
-
+        if (newScreenBlocked != mScreenBlocked) {
+            blockOrUnblockScreen(newScreenBlocked);
+        }
         if (needSendStatus) {
             Bundle bundle = new Bundle();
             bundle.putBoolean(DroidLogicTvUtils.ACTION_TIF_BEFORE_TUNE, true);
@@ -838,7 +875,8 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
         bundle.putBoolean(DroidLogicTvUtils.ACTION_TIF_AFTER_TUNE, true);
         sendAppPrivateCommand(DroidLogicTvUtils.ACTION_TIF_AFTER_TUNE, bundle);
         updateBlockScreenAndMuting();
-        if (mOnTuneListener != null) {
+        //wait for update by video available if need control tune process
+        if (mOnTuneListener != null && !SystemProperties.USE_DEBUG_TUNE_CONTROL.getValue()) {
             mOnTuneListener.onStreamInfoChanged(this);
         }
         //clear av vchip info when tune
@@ -964,6 +1002,16 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
     @Override
     public String getVideoPiFormat() {
         return mVideoPiFormat;
+    }
+
+    @Override
+    public int getSignalStrength() {
+        return mSingalStrength;
+    }
+
+    @Override
+    public int getSignalQuality() {
+        return mSingalQuality;
     }
 
     @Override
@@ -1105,6 +1153,7 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
      * @param blockOrUnblock {@code true} to block the screen, or {@code false} to unblock.
      */
     public void blockOrUnblockScreen(boolean blockOrUnblock) {
+        Log.d(TAG, "blockOrUnblockScreen blockOrUnblock = " + blockOrUnblock);
         if (!mResetScreenBlocked && mScreenBlocked == blockOrUnblock) {
             Log.d(TAG, "blockOrUnblockScreen same block status");
             return;
@@ -1186,13 +1235,23 @@ public class TunableTvView extends FrameLayout implements StreamInfo, TunableTvV
                 if (blockReason == TvInputManager.VIDEO_UNAVAILABLE_REASON_TUNING) {
                     showImageForTuningIfNeeded();
                     //show nothing when tuning
-                    mBlockScreenView.setVisibility(GONE);
+                    if (mCurrentChannel != null && mCurrentChannel.isOtherChannel()) {
+                        mBlockScreenView.setIconImage(0);
+                        mBlockScreenView.setIconVisibility(false);//keep black util video available
+                    } else {
+                        mBlockScreenView.setVisibility(GONE);
+                    }
                     mBufferingSpinnerView.setVisibility(GONE);
                 } else if (blockReason == TvInputManager.VIDEO_UNAVAILABLE_REASON_UNKNOWN
                         && mCurrentChannel != null
                         && !mCurrentChannel.isPhysicalTunerChannel()) {
-                    mInternetCheckTask = new InternetCheckTask();
-                    mInternetCheckTask.execute();
+                    if (QuickKeyInfo.DTVKIT_PACKAGE.equals(mCurrentChannel.getPackageName())) {
+                        //dtvkit is regarded as other source
+                        Log.i(TAG, "dtvkit source is regarded as but used as hardware and no need to check internet");
+                    } else {
+                        mInternetCheckTask = new InternetCheckTask();
+                        mInternetCheckTask.execute();
+                    }
                 } else if ((blockReason == TvInputManager.VIDEO_UNAVAILABLE_REASON_UNKNOWN || blockReason == TvInputManager.VIDEO_UNAVAILABLE_REASON_AUDIO_ONLY)
                         && mCurrentChannel != null && mCurrentChannel.isPhysicalTunerChannel()) {
                     //show nothing if no signal

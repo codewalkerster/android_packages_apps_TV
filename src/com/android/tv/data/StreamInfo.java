@@ -55,4 +55,8 @@ public interface StreamInfo {
     int getVideoUnavailableReason();
 
     String getVideoPiFormat();
+
+    int getSignalStrength();
+
+    int getSignalQuality();
 }

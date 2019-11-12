@@ -57,6 +57,10 @@ public class ChannelStereoFragment extends SideFragment {
         R.string.channel_audio_outmode_dualII
     };
 
+    private static final int[] MONO_ONLY = {
+        R.string.channel_audio_outmode_mono,
+    };
+
     private ChannelSettingsManager mChannelSettingsManager;
 
     private final int BASC_MONO   = 0;
@@ -230,6 +234,20 @@ public class ChannelStereoFragment extends SideFragment {
                             items.add(item);
                         }
                     }
+                }
+            }
+                break;
+            case TvControlManager.AUDIO_STANDARD_MONO_BG:
+            case TvControlManager.AUDIO_STANDARD_MONO_DK:
+            case TvControlManager.AUDIO_STANDARD_MONO_I:
+            case TvControlManager.AUDIO_STANDARD_MONO_M:
+            case TvControlManager.AUDIO_STANDARD_MONO_L:
+            {
+                SoundChannelItem item = new SoundChannelItem(getString(MONO_ONLY[0]), 0);
+                item.setChecked(true);
+                items.add(item);
+                if (readmode != (value & 0xFF)) {
+                    setAudioMode(readmode);
                 }
             }
                 break;

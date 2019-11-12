@@ -171,6 +171,14 @@ public class DvrHalfSizedDialogFragment extends HalfSizedDialogFragment {
         }
     }
 
+    /** A dialog fragment for {@link DvrStopOrContinueRecordingFragment}. */
+    public static class DvrStopOrContinueRecordingDialogFragment extends DvrGuidedStepDialogFragment {
+        @Override
+        protected DvrGuidedStepFragment onCreateGuidedStepFragment() {
+            return new DvrStopOrContinueRecordingFragment();
+        }
+    }
+
     /** A dialog fragment for {@link DvrAlreadyScheduledFragment}. */
     public static class DvrAlreadyScheduledDialogFragment extends DvrGuidedStepDialogFragment {
         @Override
@@ -192,6 +200,14 @@ public class DvrHalfSizedDialogFragment extends HalfSizedDialogFragment {
         @Override
         protected DvrGuidedStepFragment onCreateGuidedStepFragment() {
             return new DvrFutureProgramInfoFragment();
+        }
+    }
+
+    /** A dialog fragment for {@link DvrInprogressScheduleConfirmFragment}. */
+    public static class DvrInprogressScheduleConfirmDialogFragment extends DvrGuidedStepDialogFragment {
+        @Override
+        protected DvrGuidedStepFragment onCreateGuidedStepFragment() {
+            return new DvrInprogressScheduleConfirmFragment();
         }
     }
 }

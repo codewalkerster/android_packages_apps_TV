@@ -318,6 +318,22 @@ public class ProgramDataManager implements MemoryManageable {
                 cachedPrograms.subList(startIndex, cachedPrograms.size()));
     }
 
+    public Program getProgram(long channelId, long programId) {
+        SoftPreconditions.checkState(mPrefetchEnabled, TAG, "Prefetch is disabled.");
+        ArrayList<Program> cachedPrograms = mChannelIdProgramCache.get(channelId);
+        if (cachedPrograms == null) {
+            return null;
+        }
+        ListIterator<Program> i = cachedPrograms.listIterator();
+        while (i.hasNext()) {
+            Program cachedProgram = i.next();
+            if (cachedProgram.getId() == programId) {
+                return cachedProgram;
+            }
+        }
+        return null;
+    }
+
     /**
      * Returns the index of program that is played at the specified time.
      *

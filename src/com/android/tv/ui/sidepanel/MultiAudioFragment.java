@@ -57,6 +57,10 @@ public class MultiAudioFragment extends SideFragment {
         R.string.channel_audio_outmode_dualII
     };
 
+    private static final int[] MONO_ONLY = {
+        R.string.channel_audio_outmode_mono,
+    };
+
     public MultiAudioFragment() {
         super(KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK, KeyEvent.KEYCODE_A);
     }
@@ -251,6 +255,23 @@ public class MultiAudioFragment extends SideFragment {
                 }
             }
                 break;
+            case TvControlManager.AUDIO_STANDARD_MONO_BG:
+            case TvControlManager.AUDIO_STANDARD_MONO_DK:
+            case TvControlManager.AUDIO_STANDARD_MONO_I:
+            case TvControlManager.AUDIO_STANDARD_MONO_M:
+            case TvControlManager.AUDIO_STANDARD_MONO_L:
+            {
+                int pos = 0;
+                RadioButtonItem item = new MultiAudioOptionItem(getString(MONO_ONLY[0]), String.valueOf(pos));
+                item.setChecked(true);
+                items.add(item);
+                if (readmode != (value & 0xFF)) {
+                    setAudioMode(String.valueOf(readmode));
+                }
+                mInitialSelectedPosition = pos;
+                mSelectedTrackId = mFocusedTrackId = String.valueOf(pos);
+            }
+                break;
             default:
                 Log.d(TAG, "Unsupport audio std: 0x" + Integer.toHexString(readmode));
                 break;
@@ -270,7 +291,9 @@ public class MultiAudioFragment extends SideFragment {
             boolean needToShowSampleRate = Utils.needToShowSampleRate(getActivity(), tracks);
             int pos = 0;
             for (final TvTrackInfo track : tracks) {
-                boolean isAdAudio = AD_AUDIO_DISCRIPTION.equals(track.getDescription());
+                CharSequence des = track.getDescription();
+                String descrip = (des != null ? des.toString() : null);
+                boolean isAdAudio = AD_AUDIO_DISCRIPTION.equalsIgnoreCase(descrip);
                 RadioButtonItem item = new MultiAudioOptionItem(
                     Utils.getMultiAudioWithFormat(getMainActivity(), track) + (isAdAudio ? AD_AUDIO_SUF : ""), track.getId());
                 if (track.getId().equals(mSelectedTrackId)) {

@@ -823,9 +823,9 @@ public class ChannelSearchActivity extends Activity implements OnClickListener, 
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (position >= mSupportAtvAudioSysList.size()) {
                     Log.w(TAG, "set audio system postion:" + position + " error, set auto");
-                    DroidLogicTvUtils.setTvSearchTypeSys(ChannelSearchActivity.this, TvScanConfig.TV_SOUND_SYS.get(TvScanConfig.TV_SOUND_SYS_AUTO_INDEX));
+                    DroidLogicTvUtils.setTvSearchSoundSys(ChannelSearchActivity.this, TvScanConfig.TV_SOUND_SYS.get(TvScanConfig.TV_SOUND_SYS_AUTO_INDEX));
                 } else {
-                    DroidLogicTvUtils.setTvSearchTypeSys(ChannelSearchActivity.this, mSupportAtvAudioSysList.get(position));
+                    DroidLogicTvUtils.setTvSearchSoundSys(ChannelSearchActivity.this, mSupportAtvAudioSysList.get(position));
                 }
             }
 

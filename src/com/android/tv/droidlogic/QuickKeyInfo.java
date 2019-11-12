@@ -43,6 +43,7 @@ import android.view.KeyEvent;
 import android.os.Handler;
 import android.net.Uri;
 import android.media.AudioManager;
+import android.content.ContentValues;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,8 +73,15 @@ import com.android.tv.data.Program;
 import com.android.tv.parental.ContentRatingsManager;
 import com.android.tv.data.ChannelDataManager;
 import com.android.tv.data.ChannelNumber;
+import com.android.tv.data.ProgramDataManager;
 import com.android.tv.util.Utils;
+import com.android.tv.util.ToastUtils;
 import com.android.tv.TvSingletons;
+import com.android.tv.dvr.DvrManager;
+import com.android.tv.dvr.DvrDataManager;
+import com.android.tv.dvr.data.ScheduledRecording;
+import com.android.tv.dvr.ui.DvrUiHelper;
+import com.android.tv.common.feature.CommonFeatures;
 import com.android.tv.R;
 
 import com.android.tv.droidlogic.channelui.ChannelSourceSettingFragment;
@@ -92,7 +100,7 @@ import com.droidlogic.app.DroidLogicKeyEvent;
 
 public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
     private final static String TAG = "QuickKeyInfo";
-    private final boolean DEBUG = false;
+    private final static boolean DEBUG = false;
     private TvInputManagerHelper mTvInputManagerHelper;
     private Context mContext;
     private ChannelTuner mChannelTuner;
@@ -110,6 +118,7 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
 
     private static final int REQUEST_CODE_START_TV_SOURCE = 3;
     private static final int REQUEST_CODE_START_DROID_SETTINGS = 4;
+    private static final int REQUEST_CODE_START_FAV_SETTINGS = 5;
 
     public static final String DTVKIT_PACKAGE = "org.dtvkit.inputsource";
     public static final String DRA_VARSION = "stream_dra_channel";
@@ -150,6 +159,24 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
             mActivity.startActivityForResult(intent, REQUEST_CODE_START_TV_SOURCE);
         } catch (ActivityNotFoundException e) {
             Toast.makeText(mContext, mActivity.getString(R.string.options_item_not_found), Toast.LENGTH_SHORT).show();
+            return;
+        }
+    }
+
+    //start favlist settings
+    public void startFavSettings(){
+        try {
+            Intent intent = new Intent();
+            intent.setClassName("com.droidlogic.droidlivetv", "com.droidlogic.droidlivetv.favlistsettings.SortFavActivity");
+            String inputId = mChannelTuner.getCurrentInputInfo() != null ? mChannelTuner.getCurrentInputInfo().getId() : null;
+            if (inputId == null) {
+                Log.i(TAG, "startFavSettings inputId = " + inputId);
+                return;
+            }
+            intent.putExtra(TvInputInfo.EXTRA_INPUT_ID, inputId);
+            mActivity.startActivityForResult(intent, REQUEST_CODE_START_FAV_SETTINGS);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(mContext, mActivity.getString(R.string.droidsettings_not_found), Toast.LENGTH_SHORT).show();
             return;
         }
     }
@@ -228,6 +255,8 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
                     handleUiCommand(intent);
                 } else if (COMMAND_EPG_SWITCH_CHANNEL.equals(intent.getAction())) {
                     handleEpgCommand(intent);
+                } else if (DroidLogicTvUtils.ACTION_DROID_PROGRAM_RECORD_APPOINTED.equals(intent.getAction())) {
+                    handleEpgRecordCommand(intent);
                 }
             }
         }
@@ -246,6 +275,7 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
         intentFilter.addAction(COMMANDACTION);
         intentFilter.addAction(DroidLogicTvUtils.ACTION_SWITCH_CHANNEL);
         intentFilter.addAction(DroidLogicTvUtils.ACTION_PROGRAM_APPOINTED);
+        intentFilter.addAction(DroidLogicTvUtils.ACTION_DROID_PROGRAM_RECORD_APPOINTED);
         mActivity.registerReceiver(mUiCommandReceiver, intentFilter);
         mTvControlManager.SetRRT5SourceUpdateListener(this);
     }
@@ -293,7 +323,10 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
                             Log.d(TAG,"appointone id = " + appoint_channelid);
                             Channel appointone_fromlist = mChannelTuner.getChannelById(appoint_channelid);
                             Channel appointone_fromdb = null;
-                            if (!DroidLogicTvUtils.isAtscCountry(mContext) && DroidLogicTvUtils.getSearchType(mContext).equals(TvScanConfig.TV_SEARCH_TYPE.get(TvScanConfig.TV_SEARCH_TYPE_ATV_INDEX))) {
+                            String searchInput = DroidLogicTvUtils.getSearchInputId(mContext);
+                            boolean dtvkit = searchInput != null && searchInput.startsWith(QuickKeyInfo.DTVKIT_PACKAGE);
+                            if ((!DroidLogicTvUtils.isAtscCountry(mContext) && DroidLogicTvUtils.getSearchType(mContext).equals(TvScanConfig.TV_SEARCH_TYPE.get(TvScanConfig.TV_SEARCH_TYPE_ATV_INDEX))) ||
+                                    dtvkit) {
                                 if (appointone_fromlist == null) {
                                     Log.d(TAG, "appoint channel not exist in current list and need to be updated");
                                     appointone_fromdb = getChannelFromDbById(appoint_channelid);
@@ -563,6 +596,19 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
     public void updateChnnelInfoToDb(ChannelInfo value) {
         if (value != null) {
             mTvDataBaseManager.updateChannelInfo(value);
+        }
+    }
+
+    public void updateProgramRecordStatusToDb(long programid, int status) {
+        if (programid != -1) {
+            try {
+                ContentValues values = new ContentValues();
+                values.put(TvContract.Programs.COLUMN_INTERNAL_PROVIDER_FLAG4, status);
+                mContext.getContentResolver().update(TvContract.buildProgramUri(programid), values, null, null);
+                Log.d(TAG, "updateProgramRecordStatusToDb programid = " + programid + ", status = " + status);
+            } catch (Exception e) {
+                Log.e(TAG, "updateProgramRecordStatusToDb Exception = ", e);
+            }
         }
     }
 
@@ -1091,6 +1137,14 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
         return result;
     }
 
+    public int getDtvKitSearchedBrowseOrHiddenChannelNumber(Intent data) {
+        int result = -1;
+        if (data != null) {
+            result = data.getIntExtra(SEARCH_FOUND_SERVICE_NUMBER, 0);
+        }
+        return result;
+    }
+
     public void setSearchedChannelFlag(boolean value) {
         mStartSearch = value;
         //reset number search parameters
@@ -1325,6 +1379,7 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
     public static final String COMMAND_EPG_CHANNEL_ID =  DroidLogicTvUtils.EXTRA_CHANNEL_ID;
     public static final String COMMAND_EPG_APPOINT =  DroidLogicTvUtils.ACTION_LIVETV_PROGRAM_APPOINTED;
     public static final String COMMAND_EPG_PROGRAM_ID =  DroidLogicTvUtils.EXTRA_PROGRAM_ID;
+    public static final String COMMAND_EPG_STOP =  DroidLogicTvUtils.ACTION_STOP_EPG_ACTIVITY;
 
     private boolean handleEpgCommand(Intent intent) {
         if (COMMAND_EPG_SWITCH_CHANNEL.equals(intent.getAction())) {
@@ -1332,7 +1387,13 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
             if (id != -1) {
                 Channel channel = mChannelTuner.getChannelById(id);
                 if (channel != null && channel.getId() != mChannelTuner.getCurrentChannelId()) {
-                    mActivity.tuneToChannel(channel);
+                    if (mActivity.isCurrentChannelDvrRecording()) {//deal dvr recording first
+                        Log.d(TAG, "[handleEpgCommand] check pvr status");
+                        sendCloseEpgAcitvity(mActivity);
+                        mActivity.CheckNeedStopDvrFragmentWhenTuneTo(channel);
+                    } else {
+                        mActivity.tuneToChannel(channel);
+                    }
                 }
             }
             Log.d(TAG, "[handleEpgCommand] " + COMMAND_EPG_SWITCH_CHANNEL);
@@ -1340,6 +1401,81 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
         }
         return false;
     }
+
+    private void sendCloseEpgAcitvity(Context conxtet) {
+        Intent intent = new Intent(COMMAND_EPG_STOP);
+        conxtet.sendBroadcast(intent);
+    }
+
+    private boolean handleEpgRecordCommand(Intent intent) {
+        boolean add = intent.getBooleanExtra(DroidLogicTvUtils.ACTION_DROID_PROGRAM_RECORD_OPERATION, false);
+        long channelId = intent.getLongExtra(DroidLogicTvUtils.EXTRA_CHANNEL_ID, -1);
+        long programId = intent.getLongExtra(DroidLogicTvUtils.EXTRA_PROGRAM_ID, -1);
+        ProgramDataManager programDataManager = mActivity.getProgramDataManager();
+        ChannelDataManager channelDataManager = mActivity.getChannelDataManager();
+        DvrManager dvrManager = TvSingletons.getSingletons(mContext).getDvrManager();
+        DvrDataManager dvrDataManager = TvSingletons.getSingletons(mContext).getDvrDataManager();
+        if (programDataManager != null && channelDataManager != null && dvrManager != null && dvrDataManager != null &&
+                channelId != -1 && programId != -1) {
+            final Channel channel = channelDataManager.getChannel(channelId);
+            final Program program = programDataManager.getProgram(channelId, programId);
+            final ScheduledRecording scheduledRecording = dvrDataManager.getScheduledRecordingForProgramId(programId);
+            if (program != null && CommonFeatures.DVR.isEnabled(mContext)) {
+                if (program.getStartTimeUtcMillis() > TvSingletons.getSingletons(mContext).getTvClock().currentTimeMillis()
+                        && dvrManager.isProgramRecordable(program)) {
+                    if (add) {//add scheduler
+                        if (scheduledRecording == null) {
+                            boolean result = DvrUiHelper.requestRecordingFutureProgram(mActivity, program, false);
+                            if (result) {
+                                sendRequestRecordStatus("{\"status\":\"true\",\"action\":\"add\",\"extra\":\"\",\"programid\":" + programId + "}");
+                            } else {
+                                sendRequestRecordStatus("{\"status\":\"false\",\"action\":\"add\",\"conflict\":\"true\",\"extra\":\"\",\"programid\":" + programId + "}");
+                            }
+                            return true;
+                        } else {
+                            sendRequestRecordStatus("{\"status\":\"false\",\"action\":\"add\",\"extra\":\"\",\"programid\":" + programId + "}");
+                        }
+                    } else {
+                        if (scheduledRecording != null) {
+                            dvrManager.removeScheduledRecording(scheduledRecording);
+                            String msg =
+                                    mContext.getResources()
+                                            .getString(
+                                                    R.string.dvr_schedules_deletion_info,
+                                                    program.getTitle());
+                            ToastUtils.show(mContext, msg, Toast.LENGTH_SHORT);
+                            sendRequestRecordStatus("{\"status\":\"true\",\"action\":\"remove\",\"extra\":\"\",\"programid\":" + programId + "}");
+                            return true;
+                        } else {
+                            sendRequestRecordStatus("{\"status\":\"false\",\"action\":\"remove\",\"extra\":\"\",\"programid\":" + programId + "}");
+                        }
+                    }
+                } else {
+                    sendRequestRecordStatus("{\"status\":\"false\",\"action\":\"remove\",\"extra\":\"\",\"programid\":" + programId + "}");
+                    ToastUtils.show(
+                            mContext,
+                            mContext.getResources()
+                                    .getString(R.string.dvr_msg_cannot_record_program),
+                            Toast.LENGTH_SHORT);
+                }
+            }
+        } else {
+            if (add) {
+                sendRequestRecordStatus("{\"status\":\"false\",\"action\":\"add\",\"extra\":\"\",\"programid\":" + programId + "}");
+            } else {
+                sendRequestRecordStatus("{\"status\":\"false\",\"action\":\"remove\",\"extra\":\"\",\"programid\":" + programId + "}");
+            }
+        }
+        return false;
+    }
+
+    private void sendRequestRecordStatus(String json) {
+        Intent intent = new Intent(DroidLogicTvUtils.ACTION_DROID_PROGRAM_RECORD_STATUS);
+        intent.addFlags(0x01000000/*Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND*/);
+        intent.putExtra(DroidLogicTvUtils.ACTION_DROID_PROGRAM_RECORD_STATUS_JSON, json);
+        mContext.sendBroadcast(intent);
+    }
+
     /********end:add to deal epg command for quick key********/
 
     /********start:add to deal no signal suspend for quick key********/
@@ -1463,6 +1599,11 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
     public void doNumberSearch(ChannelNumber typedone) {
         if (!DroidLogicTvUtils.isAtscCountry(mContext)) {
             if (DEBUG) Log.d(TAG, "number search only server for atsc mode");
+            return;
+        }
+        String searchInput = DroidLogicTvUtils.getSearchInputId(mContext);
+        if (searchInput != null && searchInput.startsWith(DTVKIT_PACKAGE)) {
+            if (DEBUG) Log.d(TAG, "dtvkit doesn't need search");
             return;
         }
         CheckChannelByFrequency(typedone);
@@ -1752,7 +1893,7 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
     }
     /********start: deal channel changed by service********/
 
-    public boolean isTeletextSubtitleTrack(String trackid) {
+    public static boolean isTeletextSubtitleTrack(String trackid) {
         Map<String, String> parsedMap = DroidLogicTvUtils.stringToMap(trackid);
         int type = -1;
         String typeStr = parsedMap.get("type");
@@ -1760,10 +1901,30 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
             type = Integer.parseInt(typeStr);
         }
         if (DEBUG) Log.d(TAG, "isTeletextSubtitleTrack type = " + type);
-        if (/*type == ChannelInfo.Subtitle.TYPE_DTV_TELETEXT || */type == ChannelInfo.Subtitle.TYPE_DTV_TELETEXT_IMG) {
+        if (/*type == ChannelInfo.Subtitle.TYPE_DTV_TELETEXT || */type == ChannelInfo.Subtitle.TYPE_DTV_TELETEXT_IMG || type == ChannelInfo.Subtitle.TYPE_ATV_TELETEXT) {
             return true;
         }
         return false;
+    }
+
+    public static String getStringFromTeletextSubtitleTrack(String key, String trackid) {
+        Map<String, String> parsedMap = DroidLogicTvUtils.stringToMap(trackid);
+        String value = parsedMap.get(key);
+        if (DEBUG) Log.d(TAG, "getStringFromTeletextSubtitleTrack key = " + key + ", value = " + value);
+        return value;
+    }
+
+    public static int getIntFromTeletextSubtitleTrack(String key, String trackid) {
+        Map<String, String> parsedMap = DroidLogicTvUtils.stringToMap(trackid);
+        String value = parsedMap.get(key);
+        int result = -1;
+        if (value != null && TextUtils.isDigitsOnly(value)) {
+            result = Integer.parseInt(value);
+        } else {
+            if (DEBUG) Log.d(TAG, "getIntFromTeletextSubtitleTrack key = " + key + " can't match valid int");
+        }
+        if (DEBUG) Log.d(TAG, "getIntFromTeletextSubtitleTrack key = " + key + ", result = " + result);
+        return result;
     }
 
     /********start: set prop by system control********/
@@ -1790,4 +1951,13 @@ public class QuickKeyInfo implements TvControlManager.RRT5SourceUpdateListener {
         return getValue;
     }
     /********end: set prop by system control********/
+
+    public boolean needPreviewFetureInLuncher() {
+        boolean isTv = TvSingletons.getSingletons(mActivity).getSystemControlManager().getPropertyBoolean("ro.vendor.platform.has.tvuimode", false);
+        boolean needPreview = TvSingletons.getSingletons(mActivity).getSystemControlManager().getPropertyBoolean("tv.need.preview_window", true);
+        if (DEBUG) {
+            Log.d(TAG, "needPreviewFetureInLuncher isTv = " + isTv + ", needPreview = " + needPreview);
+        }
+        return isTv && needPreview;
+    }
 }

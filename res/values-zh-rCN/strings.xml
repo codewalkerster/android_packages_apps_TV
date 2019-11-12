@@ -374,6 +374,7 @@
     <string name="channel_info_channel">频道</string>
     <string name="channel_info_frequency">频率</string>
     <string name="channel_info_strength">信号强度</string>
+    <string name="channel_info_quality">信号质量</string>
     <string name="channel_info_type">类型</string>
     <string name="channel_info_service_id">服务ID</string>
     <string name="channel_sound_channel_stereo">立体声</string>
@@ -519,4 +520,21 @@
     <string name="subtitle_country_ellinika">希腊</string>
     <string name="subtitle_country_alarabia">阿拉伯/英国</string>
     <string name="subtitle_country_russky">俄国/保加利亚</string>
+
+    <!-- pvr-->
+    <string name="dvr_action_continue_record">继续录制并切台</string>
+    <string name="dvr_action_stop_save">停止并保存</string>
+    <string name="dvr_action_cancel_delete">取消并删除</string>
+    <string name="pvr_appoint_confirm_title"><xliff:g id="program_name" example="test">%1$s</xliff:g> 将在 <xliff:g id="rest_time" example="10">%2$d</xliff:g> 秒后开始录制 !</string>
+    <string name="pvr_appoint_confirm_title_stop_first_started"> 与此同时 <xliff:g id="program_name" example="test">%1$s</xliff:g> 将会被停止!</string>
+    <string name="pvr_appoint_confirm_title_stop_other_frequency"> 与此同时不同频点的录制将会被停止!</string>
+    <string name="pvr_appoint_confirm_record">后台录制</string>
+    <string name="pvr_appoint_confirm_switch">播放并录制</string>
+    <string name="pvr_appoint_confirm_cancel">取消录制</string>
+    <string name="pvr_timeshift_unavailable">时移录制关闭, 媒体功能键无法响应!</string>
+    <string name="pvr_diffrent_frequency_tips">下一个节目将切换至不同频点，当前录制需要先停止或取消!</string>
+    <string name="pvr_too_many_sessions_tips">录制数量过多，需要先停止或取消部分录制!</string>
+    <string name="pvr_confirm_stop_in_progress_schedule">请选择一个停止一个录制</string>
+    <string name="pvr_confirm_stop_in_progress_schedule_stop_all">停止所有</string>
+    <string name="pvr_confirm_tuning_diffrent_frequency">当前录制计划需要更改频点，切台后录制自动开始 !</string>
 </resources>

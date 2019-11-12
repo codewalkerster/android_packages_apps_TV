@@ -24,8 +24,11 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+
 import com.android.tv.R;
 import com.android.tv.util.CaptionSettings;
+import com.android.tv.droidlogic.QuickKeyInfo;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -85,7 +88,7 @@ public class ClosedCaptionFragment extends SideFragment {
             ClosedCaptionOptionItem item2 = null;
             boolean hassubtitle = false;
             for (int i = 0; i < tracks.size(); i++) {
-                if (getMainActivity().mQuickKeyInfo.isTeletextSubtitleTrack(tracks.get(i).getId())) {
+                if (QuickKeyInfo.isTeletextSubtitleTrack(tracks.get(i).getId())) {
                     continue;
                 }
                 item2 = new ClosedCaptionOptionItem(tracks.get(i), position);
@@ -168,7 +171,15 @@ public class ClosedCaptionFragment extends SideFragment {
         if (track == null) {
             return getString(R.string.closed_caption_option_item_off);
         } else if (track.getLanguage() != null) {
-            return new Locale(track.getLanguage()).getDisplayName();
+            String flag = QuickKeyInfo.getStringFromTeletextSubtitleTrack("flag", track.getId());
+            if (TextUtils.isEmpty(flag)) {
+                flag = "";
+            } else if ("none".equals(flag)) {
+                flag = "";
+            } else {
+                flag = " [" + flag + "]";
+            }
+            return new Locale(track.getLanguage()).getDisplayName() + flag;
         }
         return getString(R.string.closed_caption_unknown_language, trackIndex);
     }

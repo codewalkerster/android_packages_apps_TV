@@ -41,6 +41,8 @@ import com.android.tv.dvr.DvrDataManager.ScheduledRecordingListener;
 import com.android.tv.dvr.DvrManager;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.ui.DvrStopRecordingFragment;
+import com.android.tv.dvr.ui.DvrStopOrContinueRecordingFragment;
+
 import com.android.tv.dvr.ui.DvrUiHelper;
 import com.android.tv.menu.Menu.MenuShowReason;
 import com.android.tv.ui.TunableTvView;
@@ -312,7 +314,7 @@ public class PlayControlsRowView extends MenuRowView {
             DvrUiHelper.showStopRecordingDialog(
                     mMainActivity,
                     currentChannel.getId(),
-                    DvrStopRecordingFragment.REASON_USER_STOP,
+                    DvrStopOrContinueRecordingFragment.REASON_USER_STOP,
                     new HalfSizedDialogFragment.OnActionClickListener() {
                         @Override
                         public void onActionClick(long actionId) {
@@ -381,6 +383,7 @@ public class PlayControlsRowView extends MenuRowView {
                     @Override
                     public void onCurrentPositionChanged() {
                         if (mTimeShiftManager.isAvailable()) {
+                            updateMenuVisibility();
                             initializeTimeline();
                             updateControls(false);
                         }

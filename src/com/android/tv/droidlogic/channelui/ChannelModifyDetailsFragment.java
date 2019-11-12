@@ -29,6 +29,7 @@ import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
 import android.widget.TextView;
 import android.widget.EditText;
+import android.media.tv.TvContract;
 
 import com.android.tv.MainActivity;
 import com.android.tv.ChannelTuner;
@@ -60,6 +61,7 @@ public class ChannelModifyDetailsFragment extends SideFragment {
     private ChannelSettingsManager mChannelSettingsManager;
     private ChannelTuner mChannelTuner;
     private long mChannelId;
+    private String mChannelType;
     private long mLastChannelId = -1;
     private long mNextChannelId = -1;
     private static final int[] ITEM_TYPE = {R.string.channel_edit_edit, R.string.channel_edit_skip, R.string.channel_edit_delete,
@@ -70,6 +72,10 @@ public class ChannelModifyDetailsFragment extends SideFragment {
     private static final int SET_FAVOURITE = 3;
     private static final int SET_MOVE_UP = 4;
     private static final int SET_MOVE_DOWN = 5;
+
+    public ChannelModifyDetailsFragment(String type) {
+        mChannelType = type;
+    }
 
     private final SideFragmentListener mSideFragmentListener = new SideFragmentListener() {
         @Override
@@ -105,12 +111,19 @@ public class ChannelModifyDetailsFragment extends SideFragment {
                 num = ITEM_TYPE.length - 2;//not dtmb, move is not need
             }
             for (int i = 0; i < num; i++) {
+                if (i == 2 && TvContract.Channels.TYPE_OTHER.equals(mChannelType)) {
+                    continue;//skip delete function for other type of channels as sync reason
+                }
                 items.add(new EditOptionItem(getString(ITEM_TYPE[i]), i, mChannelId));
             }
         }
 
         //items.addAll(mActionItems);
         return items;
+    }
+
+    public void setChannelType(String type) {
+        mChannelType = type;
     }
 
     private class StringComparator implements Comparator<ChannelInfo> {
@@ -221,8 +234,9 @@ public class ChannelModifyDetailsFragment extends SideFragment {
             @Override
             public void onClick(View view) {
                 if (edit_text.getText() != null && edit_text.getText().length() > 0) {
-                     mChannelSettingsManager.setChannelName(channelid, edit_text.getText().toString());
-                     mAlertDialog.dismiss();
+                    mChannelSettingsManager.setChannelName(channelid, edit_text.getText().toString());
+                    mAlertDialog.dismiss();
+                    closeFragment();
                 }
             }
         });

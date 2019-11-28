@@ -87,7 +87,7 @@ public class Utils {
     public static final String EXTRA_KEY_RECORDED_PROGRAM_PIN_CHECKED =
             "recorded_program_pin_checked";
 
-    private static final String AUDIO_FORMAT_DD = "Dolby Digital";
+    private static final String AUDIO_FORMAT_DD = "Dolby Audio";
 
     private static final String PATH_CHANNEL = "channel";
     private static final String PATH_PROGRAM = "program";
@@ -674,7 +674,7 @@ public class Utils {
             audioformat = audioCodes;
         }
         if (!TextUtils.isEmpty(audioformat) && ("AC3".equalsIgnoreCase(audioformat) || "EAC3".equalsIgnoreCase(audioformat))) {
-            audioformat = AUDIO_FORMAT_DD;
+            audioformat = /*AUDIO_FORMAT_DD*/context.getString(R.string.multi_audio_dolby_audio);
         }
 
         return context.getString(
@@ -698,7 +698,7 @@ public class Utils {
             audioformat = audioCodes;
         }
         if (!TextUtils.isEmpty(audioformat) && ("AC3".equalsIgnoreCase(audioformat) || "EAC3".equalsIgnoreCase(audioformat))) {
-            audioformat = AUDIO_FORMAT_DD;
+            audioformat = /*AUDIO_FORMAT_DD*/context.getString(R.string.multi_audio_dolby_audio);
         }
 
         return context.getString(

@@ -461,4 +461,7 @@
     <string name="pvr_confirm_stop_in_progress_schedule">请选则停止一个录制</string>
     <string name="pvr_confirm_stop_in_progress_schedule_stop_all">停止所有</string>
     <string name="pvr_confirm_tuning_diffrent_frequency">當前錄製計劃需要更改頻點，切台後錄製自動啟動 !</string>
+
+    <!-- multi audio -->
+    <string name="multi_audio_dolby_audio">杜比</string>
 </resources>

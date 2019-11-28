@@ -444,4 +444,7 @@
     <string name="subtitle_country_ellinika">希臘</string>
     <string name="subtitle_country_alarabia">阿拉伯/英國</string>
     <string name="subtitle_country_russky">俄國/保加利亞</string>
+
+    <!-- multi audio -->
+    <string name="multi_audio_dolby_audio">杜比</string>
 </resources>

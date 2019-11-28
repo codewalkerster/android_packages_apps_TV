@@ -1216,4 +1216,7 @@
     <string name="pvr_confirm_stop_in_progress_schedule_stop_all">Stop All</string>
     <string name="dvr_program_duration_total"><xliff:g id="hour" example="10">%1$02d</xliff:g>:<xliff:g id="minute" example="10">%2$02d</xliff:g>:<xliff:g id="hour" example="10">%3$02d</xliff:g></string>
     <string name="pvr_confirm_tuning_diffrent_frequency">Current schedule needs to switch to current program firstly as frequency changes !</string>
+
+    <!-- multi audio -->
+    <string name="multi_audio_dolby_audio">Dolby Audio</string>
 </resources>

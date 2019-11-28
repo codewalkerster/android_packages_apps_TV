@@ -4096,9 +4096,12 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             }
             applyDisplayRefreshRate(info.getVideoFrameRate());
             mTvViewUiManager.updateTvAspectRatio();
-            applyMultiAudio();
-            if (info.getCurrentChannel() != null && !info.getCurrentChannel().isOtherChannel()) {
-                applyClosedCaption();//only applay it when use select a track for other type channel
+            Channel currentOne = info.getCurrentChannel();
+            if (currentOne != null && !QuickKeyInfo.DTVKIT_PACKAGE.equals(currentOne.getPackageName())) {
+                applyMultiAudio();//only applay it when use select a track for dtvkit channel
+            }
+            if (info.getCurrentChannel() != null && !QuickKeyInfo.DTVKIT_PACKAGE.equals(currentOne.getPackageName())) {
+                applyClosedCaption();//only applay it when use select a track for dtvkit channel
             }
             mOverlayManager.getMenu().onStreamInfoChanged();
             if (mTvView.isVideoAvailable()) {

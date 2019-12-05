@@ -27,6 +27,7 @@ import android.support.annotation.Nullable;
 import android.support.annotation.WorkerThread;
 import android.util.Log;
 import android.util.Range;
+
 import com.android.tv.TvSingletons;
 import com.android.tv.common.BuildConfig;
 import com.android.tv.common.SoftPreconditions;
@@ -34,6 +35,8 @@ import com.android.tv.data.ChannelImpl;
 import com.android.tv.data.Program;
 import com.android.tv.data.api.Channel;
 import com.android.tv.dvr.data.RecordedProgram;
+import com.android.tv.common.util.SystemProperties;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -48,7 +51,7 @@ import java.util.concurrent.Executor;
 public abstract class AsyncDbTask<Params, Progress, Result>
         extends AsyncTask<Params, Progress, Result> {
     private static final String TAG = "AsyncDbTask";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_CHANNEL_UPDATE.getValue();
 
     private final Executor mExecutor;
     boolean mCalledExecuteOnDbThread;

@@ -70,4 +70,11 @@ public interface WritableDvrDataManager extends DvrDataManager {
      * <p>Note that this should be called after the input was removed.
      */
     void forgetStorage(String inputId);
+
+    /**
+     * Remove all the records related to the input.
+     *
+     * <p>Note that this should be called after the input was removed.
+     */
+    void updateDisplayforAddedOrRemovedStorage();
 }

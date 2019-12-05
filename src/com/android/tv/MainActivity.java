@@ -1746,10 +1746,17 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
      * otherwise, the system current time.
      */
     public long getCurrentPlayingPosition() {
+        long currentTime = 0;
         if (mTimeShiftManager.isAvailable()) {
-            return mTimeShiftManager.getCurrentPositionMs();
+            currentTime = mTimeShiftManager.getCurrentPositionMs();
+            Log.d(TAG, "getCurrentPlayingPosition timeshift = " + Utils.toTimeString(currentTime));
+            //return mTimeShiftManager.getCurrentPositionMs();
+        } else {
+            currentTime = mClock.currentTimeMillis();
+            Log.d(TAG, "getCurrentPlayingPosition tvclock = " + Utils.toTimeString(currentTime));
         }
-        return mClock.currentTimeMillis();
+        return currentTime;
+        //return mClock.currentTimeMillis();
     }
 
     private Channel getBrowsableChannel() {

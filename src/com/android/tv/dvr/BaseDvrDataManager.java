@@ -30,6 +30,8 @@ import com.android.tv.dvr.data.RecordedProgram;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.data.ScheduledRecording.RecordingState;
 import com.android.tv.dvr.data.SeriesRecording;
+import com.android.tv.common.util.SystemProperties;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,7 +47,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 @TargetApi(Build.VERSION_CODES.N)
 public abstract class BaseDvrDataManager implements WritableDvrDataManager {
     private static final String TAG = "BaseDvrDataManager";
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = true || SystemProperties.USE_DEBUG_PVR.getValue();
     protected final Clock mClock;
 
     private final Set<OnDvrScheduleLoadFinishedListener> mOnDvrScheduleLoadFinishedListeners =

@@ -38,6 +38,8 @@ import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.Log;
 import android.util.Range;
+import android.os.StatFs;
+
 import com.android.tv.TvSingletons;
 import com.android.tv.common.SoftPreconditions;
 import com.android.tv.common.recording.RecordingStorageStatusManager;
@@ -64,6 +66,8 @@ import com.android.tv.util.AsyncDbTask.AsyncRecordedProgramQueryTask;
 import com.android.tv.util.Filter;
 import com.android.tv.util.TvInputManagerHelper;
 import com.android.tv.util.TvUriMatcher;
+import com.android.tv.common.util.SystemProperties;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,7 +83,7 @@ import java.util.concurrent.Executor;
 @TargetApi(Build.VERSION_CODES.N)
 public class DvrDataManagerImpl extends BaseDvrDataManager {
     private static final String TAG = "DvrDataManagerImpl";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_PVR.getValue();
 
     private final TvInputManagerHelper mInputManager;
 
@@ -141,7 +145,8 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     private final OnStorageMountChangedListener mStorageMountChangedListener =
             new OnStorageMountChangedListener() {
                 @Override
-                public void onStorageMountChanged(boolean storageMounted) {
+                public void onStorageMountChanged(boolean storageMounted, String path) {
+                    Log.d(TAG, "onStorageMountChanged storageMounted = " + storageMounted + ", path = " + path);
                     for (TvInputInfo input : mInputManager.getTvInputInfos(true, true)) {
                         if (CommonUtils.isBundledInput(input.getId())) {
                             if (storageMounted) {
@@ -446,6 +451,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
             return Collections.emptyList();
         }
         ArrayList<ScheduledRecording> list = new ArrayList<>(mScheduledRecordings.size());
+        if (DEBUG) {
+            Log.d(TAG, "getScheduledRecordingsPrograms " + (list != null ? list.size() : null));
+        }
         list.addAll(mScheduledRecordings.values());
         Collections.sort(list, ScheduledRecording.START_TIME_COMPARATOR);
         return list;
@@ -456,6 +464,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         if (!mRecordedProgramLoadFinished) {
             return Collections.emptyList();
         }
+        if (DEBUG) {
+            Log.d(TAG, "getRecordedPrograms1 " + (mRecordedPrograms != null ? mRecordedPrograms.size() : null));
+        }
         return new ArrayList<>(mRecordedPrograms.values());
     }
 
@@ -465,11 +476,17 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         if (!mRecordedProgramLoadFinished || seriesRecording == null) {
             return Collections.emptyList();
         }
+        if (DEBUG) {
+            Log.d(TAG, "getRecordedPrograms2 " + seriesRecordingId);
+        }
         return super.getRecordedPrograms(seriesRecordingId);
     }
 
     @Override
     public List<ScheduledRecording> getAllScheduledRecordings() {
+        if (DEBUG) {
+            Log.d(TAG, "getAllScheduledRecordings " + (mScheduledRecordings != null ? mScheduledRecordings.size() : null));
+        }
         return new ArrayList<>(mScheduledRecordings.values());
     }
 
@@ -477,7 +494,13 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     protected List<ScheduledRecording> getRecordingsWithState(@RecordingState int... states) {
         List<ScheduledRecording> result = new ArrayList<>();
         for (ScheduledRecording r : mScheduledRecordings.values()) {
+            if (DEBUG) {
+                Log.d(TAG, "getRecordingsWithState " + r.toString());
+            }
             for (int state : states) {
+                if (DEBUG) {
+                    Log.d(TAG, "getRecordingsWithState state = " + state);
+                }
                 if (r.getState() == state) {
                     result.add(r);
                     break;
@@ -492,6 +515,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         if (!mDvrLoadFinished) {
             return Collections.emptyList();
         }
+        if (DEBUG) {
+            Log.d(TAG, "getSeriesRecordings1 " + (mSeriesRecordings != null ? mSeriesRecordings.size() : null));
+        }
         return new ArrayList<>(mSeriesRecordings.values());
     }
 
@@ -499,6 +525,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     public List<SeriesRecording> getSeriesRecordings(String inputId) {
         List<SeriesRecording> result = new ArrayList<>();
         for (SeriesRecording r : mSeriesRecordings.values()) {
+            if (DEBUG) {
+                Log.d(TAG, "getSeriesRecordings2 inputId:" + inputId + " = " + r.toString());
+            }
             if (TextUtils.equals(r.getInputId(), inputId)) {
                 result.add(r);
             }
@@ -533,7 +562,13 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     public List<ScheduledRecording> getScheduledRecordings(
             Range<Long> period, @RecordingState int state) {
         List<ScheduledRecording> result = new ArrayList<>();
+        if (DEBUG) {
+            Log.d(TAG, "getScheduledRecordings1 period " + period + ", state = " + state);
+        }
         for (ScheduledRecording r : mScheduledRecordings.values()) {
+            if (DEBUG) {
+                Log.d(TAG, "getScheduledRecordings1 = " + r.toString());
+            }
             if (r.isOverLapping(period) && r.getState() == state) {
                 result.add(r);
             }
@@ -544,7 +579,13 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     @Override
     public List<ScheduledRecording> getScheduledRecordings(long seriesRecordingId) {
         List<ScheduledRecording> result = new ArrayList<>();
+        if (DEBUG) {
+            Log.d(TAG, "getScheduledRecordings2 seriesRecordingId =  " + seriesRecordingId);
+        }
         for (ScheduledRecording r : mScheduledRecordings.values()) {
+            if (DEBUG) {
+                Log.d(TAG, "getScheduledRecordings2 = " + r.toString());
+            }
             if (r.getSeriesRecordingId() == seriesRecordingId) {
                 result.add(r);
             }
@@ -555,7 +596,13 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     @Override
     public List<ScheduledRecording> getScheduledRecordings(String inputId) {
         List<ScheduledRecording> result = new ArrayList<>();
+        if (DEBUG) {
+            Log.d(TAG, "getScheduledRecordings3 inputId =  " + inputId);
+        }
         for (ScheduledRecording r : mScheduledRecordings.values()) {
+            if (DEBUG) {
+                Log.d(TAG, "getScheduledRecordings3 =  " + r.toString());
+            }
             if (TextUtils.equals(r.getInputId(), inputId)) {
                 result.add(r);
             }
@@ -596,6 +643,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     @Override
     public void addScheduledRecording(ScheduledRecording... schedules) {
         for (ScheduledRecording r : schedules) {
+            if (DEBUG) {
+                Log.d(TAG, "addScheduledRecording = " + r.toString());
+            }
             if (r.getId() == ScheduledRecording.ID_NOT_SET) {
                 r.setId(IdGenerator.SCHEDULED_RECORDING.newId());
             }
@@ -614,6 +664,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     @Override
     public void addSeriesRecording(SeriesRecording... seriesRecordings) {
         for (SeriesRecording r : seriesRecordings) {
+            if (DEBUG) {
+                Log.d(TAG, "addSeriesRecording = " + r.toString());
+            }
             r.setId(IdGenerator.SERIES_RECORDING.newId());
             mSeriesRecordings.put(r.getId(), r);
             SeriesRecording previousSeries = mSeriesId2SeriesRecordings.put(r.getSeriesId(), r);
@@ -640,6 +693,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         List<ScheduledRecording> schedulesNotToDelete = new ArrayList<>();
         Set<Long> seriesRecordingIdsToCheck = new HashSet<>();
         for (ScheduledRecording r : schedules) {
+            if (DEBUG) {
+                Log.d(TAG, "removeScheduledRecording = " + r.toString());
+            }
             mScheduledRecordings.remove(r.getId());
             getDeletedScheduleMap().remove(r.getProgramId());
             mProgramId2ScheduledRecordings.remove(r.getProgramId());
@@ -704,6 +760,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         List<ScheduledRecording> toUpdate = new ArrayList<>();
         List<ScheduledRecording> toDelete = new ArrayList<>();
         for (ScheduledRecording r : mScheduledRecordings.values()) {
+            if (DEBUG) {
+                Log.d(TAG, "removeSeriesRecording = " + r.toString());
+            }
             if (ids.contains(r.getSeriesRecordingId())) {
                 if (r.getState() == ScheduledRecording.STATE_RECORDING_NOT_STARTED) {
                     toDelete.add(r);
@@ -739,6 +798,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         List<ScheduledRecording> toUpdate = new ArrayList<>();
         Set<Long> seriesRecordingIdsToCheck = new HashSet<>();
         for (ScheduledRecording r : schedules) {
+            if (DEBUG) {
+                Log.d(TAG, "updateScheduledRecording = " + r.toString());
+            }
             if (!SoftPreconditions.checkState(
                     mScheduledRecordings.containsKey(r.getId()),
                     TAG,
@@ -787,6 +849,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     @Override
     public void updateSeriesRecording(final SeriesRecording... seriesRecordings) {
         for (SeriesRecording r : seriesRecordings) {
+            if (DEBUG) {
+                Log.d(TAG, "updateSeriesRecording = " + r.toString());
+            }
             if (!SoftPreconditions.checkArgument(
                     mSeriesRecordings.containsKey(r.getId()),
                     TAG,
@@ -814,6 +879,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     private void removeDeletedSchedules(ScheduledRecording... addedSchedules) {
         List<ScheduledRecording> schedulesToDelete = new ArrayList<>();
         for (ScheduledRecording r : addedSchedules) {
+            if (DEBUG) {
+                Log.d(TAG, "removeDeletedSchedules1 = " + r.toString());
+            }
             ScheduledRecording deleted = getDeletedScheduleMap().remove(r.getProgramId());
             if (deleted != null) {
                 schedulesToDelete.add(deleted);
@@ -828,6 +896,9 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
     private void removeDeletedSchedules(SeriesRecording... removedSeriesRecordings) {
         Set<Long> seriesRecordingIds = new HashSet<>();
         for (SeriesRecording r : removedSeriesRecordings) {
+            if (DEBUG) {
+                Log.d(TAG, "removeDeletedSchedules2 = " + r.toString());
+            }
             seriesRecordingIds.add(r.getId());
         }
         List<ScheduledRecording> schedulesToDelete = new ArrayList<>();
@@ -1024,6 +1095,10 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         }.executeOnDbThread();
     }
 
+    public void updateDisplayforAddedOrRemovedStorage() {
+        Log.d(TAG, "updateDisplayforAddedOrRemovedStorage");
+    }
+
     private void validateSeriesRecordings() {
         Iterator<SeriesRecording> iter = mSeriesRecordings.values().iterator();
         List<SeriesRecording> removedSeriesRecordings = new ArrayList<>();
@@ -1049,6 +1124,7 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         public RecordedProgramsQueryTask(ContentResolver contentResolver, Uri uri) {
             super(mDbExecutor, contentResolver, uri == null ? RecordedPrograms.CONTENT_URI : uri);
             mUri = uri;
+            Log.d(TAG, "RecordedProgramsQueryTask uri = " + uri);
         }
 
         @Override
@@ -1059,7 +1135,43 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         @Override
         protected void onPostExecute(List<RecordedProgram> result) {
             mPendingTasks.remove(this);
-            onRecordedProgramsLoadedFinished(mUri, result);
+            List<RecordedProgram> list = new ArrayList<RecordedProgram>();
+            if (result != null && result.size() > 0) {
+                Iterator<RecordedProgram> iter = result.iterator();
+                boolean saveExistStatus;
+                boolean readExistStatus;
+                String path = null;
+                while (iter.hasNext()) {
+                    RecordedProgram r = iter.next();
+                    path = r.getRecordFilePath();
+                    saveExistStatus = r.isRecordStorageExist();
+                    readExistStatus = isPathAvailable(path);
+                    if (DEBUG) {
+                        Log.d(TAG, "RecordedProgramsQueryTask sotrage = " + r.getRecordFilePath() +
+                                ", saveExistStatus = " +  saveExistStatus + ", readExistStatus = " + readExistStatus);
+                    }
+                    if (readExistStatus || TextUtils.isEmpty(path)) {
+                        list.add(r);
+                    }
+                }
+            }
+            if (list == null || list.size() == 0) {
+                Log.d(TAG, "RecordedProgramsQueryTask sotrage removed and all RecordedPrograms removed");
+            }
+            onRecordedProgramsLoadedFinished(mUri, list);
+        }
+
+        private boolean isPathAvailable(String path) {
+            boolean result=  false;
+            if (path != null) {
+                try {
+                    StatFs statFs = new StatFs(path);
+                    result = statFs.getTotalBytes() > 0;
+                } catch (Exception e) {
+                    Log.i(TAG, "isPathAvailable path removed " + path + ":" + e.getMessage());
+                }
+            }
+            return result;
         }
     }
 }

@@ -59,9 +59,9 @@ import com.android.tv.util.Utils;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DvrPlaybackOverlayFragment extends PlaybackFragment {
+public class DvrPlaybackOverlayFragment extends PlaybackFragment implements DvrDataManager.RecordedProgramListener {
     // TODO: Handles audio focus. Deals with block and ratings.
-    private static final String TAG = "DvrPlaybackOverlayFrag";
+    private static final String TAG = "DvrPlaybackOverlayFragment";
     private static final boolean DEBUG = true;
 
     private static final String MEDIA_SESSION_TAG = "com.android.tv.dvr.mediasession";
@@ -127,6 +127,7 @@ public class DvrPlaybackOverlayFragment extends PlaybackFragment {
                         @Override
                         public void onRecordedProgramLoadFinished() {
                             mDvrDataManager.removeRecordedProgramLoadFinishedListener(this);
+                            mDvrDataManager.addRecordedProgramListener(DvrPlaybackOverlayFragment.this);
                             if (handleIntent(getActivity().getIntent(), true)) {
                                 setUpRows();
                                 preparePlayback(getActivity().getIntent());
@@ -145,6 +146,9 @@ public class DvrPlaybackOverlayFragment extends PlaybackFragment {
         mWindowAspectRatio = mAppliedAspectRatio = (float) mWindowWidth / mWindowHeight;
         setBackgroundType(PlaybackFragment.BG_LIGHT);
         setFadingEnabled(true);
+        if (mDvrDataManager.isRecordedProgramLoadFinished()) {
+            mDvrDataManager.addRecordedProgramListener(DvrPlaybackOverlayFragment.this);
+        }
     }
 
     @Override
@@ -279,6 +283,7 @@ public class DvrPlaybackOverlayFragment extends PlaybackFragment {
         mPlaybackControlHelper.unregisterCallback();
         mMediaSessionHelper.release();
         mRelatedRecordingCardPresenter.unbindAllViewHolders();
+        mDvrDataManager.removeRecordedProgramListener(this);
         super.onDestroy();
     }
 
@@ -523,6 +528,21 @@ public class DvrPlaybackOverlayFragment extends PlaybackFragment {
         @Override
         public long getId(BaseProgram item) {
             return item.getId();
+        }
+    }
+
+    @Override
+    public void onRecordedProgramsAdded(RecordedProgram... recordedPrograms) {}
+
+    @Override
+    public void onRecordedProgramsChanged(RecordedProgram... recordedPrograms) {}
+
+    @Override
+    public void onRecordedProgramsRemoved(RecordedProgram... recordedPrograms) {
+        for (RecordedProgram recordedProgram : recordedPrograms) {
+            if (mProgram != null && recordedProgram.getId() == mProgram.getId()) {
+                getActivity().finish();
+            }
         }
     }
 }

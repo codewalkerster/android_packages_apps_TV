@@ -64,7 +64,7 @@ public class DvrBrowseFragment extends BrowseFragment
                 OnDvrScheduleLoadFinishedListener,
                 OnRecordedProgramLoadFinishedListener {
     private static final String TAG = "DvrBrowseFragment";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static final int MAX_RECENT_ITEM_COUNT = 10;
     private static final int MAX_SCHEDULED_ITEM_COUNT = 4;
@@ -429,6 +429,7 @@ public class DvrBrowseFragment extends BrowseFragment
 
     private boolean startBrowseIfDvrInitialized() {
         if (mDvrDataManager.isInitialized()) {
+            if (DEBUG) Log.d(TAG, "startBrowseIfDvrInitialized");
             // Setup rows
             mRecentAdapter = new RecentRowAdapter(MAX_RECENT_ITEM_COUNT);
             mScheduleAdapter = new ScheduleAdapter(MAX_SCHEDULED_ITEM_COUNT);
@@ -477,12 +478,17 @@ public class DvrBrowseFragment extends BrowseFragment
             mDvrScheudleManager.addOnConflictStateChangeListener(mOnConflictStateChangeListener);
             startEntranceTransition();
             return true;
+        } else {
+            if (DEBUG) Log.d(TAG, "startBrowseIfDvrInitialized mDvrDataManager not ready");
         }
         return false;
     }
 
     private void handleRecordedProgramAdded(
             RecordedProgram recordedProgram, boolean updateSeriesRecording) {
+        if (DEBUG) {
+            Log.d(TAG, "handleRecordedProgramAdded " + recordedProgram);
+        }
         mRecentAdapter.add(recordedProgram);
         String seriesId = recordedProgram.getSeriesId();
         SeriesRecording seriesRecording = null;
@@ -508,6 +514,9 @@ public class DvrBrowseFragment extends BrowseFragment
     }
 
     private void handleRecordedProgramRemoved(RecordedProgram recordedProgram) {
+        if (DEBUG) {
+            Log.d(TAG, "handleRecordedProgramRemoved " + recordedProgram);
+        }
         mRecentAdapter.remove(recordedProgram);
         String seriesId = recordedProgram.getSeriesId();
         if (seriesId != null) {
@@ -528,6 +537,9 @@ public class DvrBrowseFragment extends BrowseFragment
     }
 
     private void handleRecordedProgramChanged(RecordedProgram recordedProgram) {
+        if (DEBUG) {
+            Log.d(TAG, "handleRecordedProgramChanged " + recordedProgram);
+        }
         mRecentAdapter.change(recordedProgram);
         String seriesId = recordedProgram.getSeriesId();
         SeriesRecording seriesRecording = null;
@@ -559,6 +571,9 @@ public class DvrBrowseFragment extends BrowseFragment
 
     private void handleSeriesRecordingsAdded(List<SeriesRecording> seriesRecordings) {
         for (SeriesRecording seriesRecording : seriesRecordings) {
+            if (DEBUG) {
+                Log.d(TAG, "handleSeriesRecordingsAdded " + seriesRecording);
+            }
             mSeriesAdapter.add(seriesRecording);
             if (mSeriesId2LatestProgram.get(seriesRecording.getSeriesId()) != null) {
                 for (RecordedProgramAdapter adapter :
@@ -571,6 +586,9 @@ public class DvrBrowseFragment extends BrowseFragment
 
     private void handleSeriesRecordingsRemoved(List<SeriesRecording> seriesRecordings) {
         for (SeriesRecording seriesRecording : seriesRecordings) {
+            if (DEBUG) {
+                Log.d(TAG, "handleSeriesRecordingsRemoved " + seriesRecording);
+            }
             mSeriesAdapter.remove(seriesRecording);
             for (RecordedProgramAdapter adapter :
                     getGenreAdapters(seriesRecording.getCanonicalGenreIds())) {
@@ -581,6 +599,9 @@ public class DvrBrowseFragment extends BrowseFragment
 
     private void handleSeriesRecordingsChanged(List<SeriesRecording> seriesRecordings) {
         for (SeriesRecording seriesRecording : seriesRecordings) {
+            if (DEBUG) {
+                Log.d(TAG, "handleSeriesRecordingsChanged " + seriesRecording);
+            }
             mSeriesAdapter.change(seriesRecording);
             if (mSeriesId2LatestProgram.get(seriesRecording.getSeriesId()) != null) {
                 updateGenreAdapters(

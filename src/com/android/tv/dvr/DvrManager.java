@@ -56,6 +56,7 @@ import com.android.tv.dvr.data.SeriesRecording;
 import com.android.tv.util.AsyncDbTask;
 import com.android.tv.util.Utils;
 import com.android.tv.util.TvClock;
+import com.android.tv.common.util.SystemProperties;
 
 import com.droidlogic.app.tv.DroidLogicTvUtils;
 
@@ -77,7 +78,7 @@ import java.util.concurrent.Executor;
 @TargetApi(Build.VERSION_CODES.N)
 public class DvrManager {
     private static final String TAG = "DvrManager";
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = true || SystemProperties.USE_DEBUG_PVR.getValue();
 
     private final WritableDvrDataManager mDataManager;
     private final DvrScheduleManager mScheduleManager;
@@ -1101,6 +1102,17 @@ public class DvrManager {
     public void forgetStorage(String inputId) {
         if (mDataManager.isInitialized()) {
             mDataManager.forgetStorage(inputId);
+        }
+    }
+
+    /**
+     * hide or unhide all the records related.
+     *
+     * <p>Note that this should be called after the related storage disk is added or removed.
+     */
+    public void updateDisplayforAddedOrRemovedStorage() {
+        if (mDataManager.isInitialized()) {
+            mDataManager.updateDisplayforAddedOrRemovedStorage();
         }
     }
 

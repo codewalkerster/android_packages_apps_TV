@@ -20,11 +20,15 @@ import android.content.Context;
 import android.database.Cursor;
 import android.os.AsyncTask;
 import android.support.annotation.Nullable;
+import android.util.Log;
+
 import com.android.tv.common.concurrent.NamedThreadFactory;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.data.SeriesRecording;
 import com.android.tv.dvr.provider.DvrContract.Schedules;
 import com.android.tv.dvr.provider.DvrContract.SeriesRecordings;
+import com.android.tv.common.util.SystemProperties;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -33,6 +37,8 @@ import java.util.concurrent.Executors;
 /** {@link AsyncTask} that defaults to executing on its own single threaded Executor Service. */
 public abstract class AsyncDvrDbTask<Params, Progress, Result>
         extends AsyncTask<Params, Progress, Result> {
+    private static final String TAG = "AsyncDvrDbTask";
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_PVR.getValue();
     private static final NamedThreadFactory THREAD_FACTORY =
             new NamedThreadFactory(AsyncDvrDbTask.class.getSimpleName());
     private static final ExecutorService DB_EXECUTOR =
@@ -78,6 +84,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
 
         @Override
         protected final Void doInDvrBackground(ScheduledRecording... params) {
+            Log.d(TAG, "AsyncAddScheduleTask insertSchedules");
             sDbHelper.insertSchedules(params);
             return null;
         }
@@ -92,6 +99,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
 
         @Override
         protected final Void doInDvrBackground(ScheduledRecording... params) {
+            Log.d(TAG, "AsyncAddScheduleTask updateSchedules");
             sDbHelper.updateSchedules(params);
             return null;
         }
@@ -106,6 +114,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
 
         @Override
         protected final Void doInDvrBackground(ScheduledRecording... params) {
+            Log.d(TAG, "AsyncAddScheduleTask deleteSchedules");
             sDbHelper.deleteSchedules(params);
             return null;
         }
@@ -130,6 +139,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
                     scheduledRecordings.add(ScheduledRecording.fromCursor(c));
                 }
             }
+            Log.d(TAG, "AsyncAddScheduleTask AsyncDvrQueryScheduleTask");
             return scheduledRecordings;
         }
     }
@@ -143,6 +153,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
 
         @Override
         protected final Void doInDvrBackground(SeriesRecording... params) {
+            Log.d(TAG, "AsyncAddScheduleTask insertSeriesRecordings");
             sDbHelper.insertSeriesRecordings(params);
             return null;
         }
@@ -157,6 +168,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
 
         @Override
         protected final Void doInDvrBackground(SeriesRecording... params) {
+            Log.d(TAG, "AsyncAddScheduleTask updateSeriesRecordings");
             sDbHelper.updateSeriesRecordings(params);
             return null;
         }
@@ -171,6 +183,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
 
         @Override
         protected final Void doInDvrBackground(SeriesRecording... params) {
+            Log.d(TAG, "AsyncAddScheduleTask deleteSeriesRecordings");
             sDbHelper.deleteSeriesRecordings(params);
             return null;
         }
@@ -196,6 +209,7 @@ public abstract class AsyncDvrDbTask<Params, Progress, Result>
                     scheduledRecordings.add(SeriesRecording.fromCursor(c));
                 }
             }
+            Log.d(TAG, "AsyncAddScheduleTask AsyncDvrQuerySeriesRecordingTask");
             return scheduledRecordings;
         }
     }

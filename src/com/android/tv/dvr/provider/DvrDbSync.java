@@ -40,6 +40,8 @@ import com.android.tv.dvr.data.SeriesRecording;
 import com.android.tv.dvr.recorder.SeriesRecordingScheduler;
 import com.android.tv.util.AsyncDbTask.AsyncQueryProgramTask;
 import com.android.tv.util.TvUriMatcher;
+import com.android.tv.common.util.SystemProperties;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -63,7 +65,7 @@ import java.util.concurrent.Executor;
 @TargetApi(Build.VERSION_CODES.N)
 public class DvrDbSync {
     private static final String TAG = "DvrDbSync";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_PVR.getValue();
 
     private final Context mContext;
     private final DvrManager mDvrManager;
@@ -84,11 +86,11 @@ public class DvrDbSync {
                             onProgramsUpdated();
                             break;
                         case TvUriMatcher.MATCH_PROGRAM_ID:
-                            if (DEBUG) {
+                            /*if (DEBUG) {
                                 Log.d(
                                         TAG,
                                         "onProgramUpdated: programId=" + ContentUris.parseId(uri));
-                            }
+                            }*/
                             onProgramUpdated(ContentUris.parseId(uri));
                             break;
                     }

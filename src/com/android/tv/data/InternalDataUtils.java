@@ -21,12 +21,20 @@ import android.text.TextUtils;
 import android.util.Log;
 import com.android.tv.data.Program.CriticScore;
 import com.android.tv.dvr.data.RecordedProgram;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Iterator;
+
 
 /**
  * A utility class to parse and store data from the {@link
@@ -189,5 +197,153 @@ public final class InternalDataUtils {
             Log.e(TAG, "getInternalProviderDataString Exception = " + e.getMessage());
         }
         return result;
+    }
+
+    public static class InternalProviderData {
+        private static final String KEY_CUSTOM_DATA = "custom";
+        private JSONObject mJsonObject;
+
+        /**
+         * Creates a new empty object
+         */
+        public InternalProviderData() {
+            mJsonObject = new JSONObject();
+        }
+
+        /**
+         * Creates a new object and attempts to populate by obtaining the String representation of the
+         * provided byte array
+         *
+         * @param bytes Byte array corresponding to a correctly formatted String representation of
+         * InternalProviderData
+         * @throws ParseException If data is not formatted correctly
+         */
+        public InternalProviderData(byte[] bytes) {
+            try {
+                mJsonObject = new JSONObject(new String(bytes));
+            } catch (JSONException e) {
+                Log.i(TAG, "InternalProviderData JSONException = " + e.getMessage());
+                mJsonObject = new JSONObject();
+            }
+        }
+
+        private int jsonHash(JSONObject jsonObject) {
+            int hashSum = 0;
+            Iterator<String> keys = jsonObject.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                try {
+                    if (jsonObject.get(key) instanceof JSONObject) {
+                        // This is a branch, get hash of this object recursively
+                        JSONObject branch = jsonObject.getJSONObject(key);
+                        hashSum += jsonHash(branch);
+                    } else {
+                        // If this key does not link to a JSONObject, get hash of leaf
+                        hashSum += key.hashCode() + jsonObject.get(key).hashCode();
+                    }
+                } catch (JSONException ignored) {
+                }
+            }
+            return hashSum;
+        }
+
+        @Override
+        public int hashCode() {
+            // Recursively get the hashcode from all internal JSON keys and values
+            return jsonHash(mJsonObject);
+        }
+
+        private boolean jsonEquals(JSONObject json1, JSONObject json2) {
+            Iterator<String> keys = json1.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                try {
+                    if (json1.get(key) instanceof JSONObject) {
+                        // This is a branch, check equality of this object recursively
+                        JSONObject thisBranch = json1.getJSONObject(key);
+                        JSONObject otherBranch = json2.getJSONObject(key);
+                        return jsonEquals(thisBranch, otherBranch);
+                    } else {
+                        // If this key does not link to a JSONObject, check equality of leaf
+                        if (!json1.get(key).equals(json2.get(key))) {
+                            // The VALUE of the KEY does not match
+                            return false;
+                        }
+                    }
+                } catch (JSONException e) {
+                    return false;
+                }
+            }
+            // Confirm that no key has been missed in the check
+            return json1.length() == json2.length();
+        }
+
+        /**
+         * Tests that the value of each key is equal. Order does not matter.
+         *
+         * @param obj The object you are comparing to.
+         * @return Whether the value of each key between both objects is equal.
+         */
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || ! (obj instanceof InternalProviderData)) {
+                return false;
+            }
+            JSONObject otherJsonObject = ((InternalProviderData) obj).mJsonObject;
+            return jsonEquals(mJsonObject, otherJsonObject);
+        }
+
+        @Override
+        public String toString() {
+            return mJsonObject.toString();
+        }
+
+        public byte[] getByte() {
+            byte[] result = null;
+            String objStr = mJsonObject.toString();
+            if (objStr != null) {
+                result = objStr.getBytes();
+            }
+            return result;
+        }
+
+        /**
+         * Adds some custom data to the InternalProviderData.
+         *
+         * @param key The key for this data
+         * @param value The value this data should take
+         * @return This InternalProviderData object to allow for chaining of calls
+         * @throws ParseException If there is a problem adding custom data
+         */
+        public InternalProviderData put(String key, Object value) {
+            try {
+                if (!mJsonObject.has(KEY_CUSTOM_DATA)) {
+                    mJsonObject.put(KEY_CUSTOM_DATA, new JSONObject());
+                }
+                mJsonObject.getJSONObject(KEY_CUSTOM_DATA).put(key, String.valueOf(value));
+            } catch (JSONException e) {
+                Log.i(TAG, "InternalProviderData put JSONException = " + e.getMessage());
+            }
+            return this;
+        }
+
+        /**
+         * Gets some previously added custom data stored in InternalProviderData.
+         *
+         * @param key The key assigned to this data
+         * @return The value of this key if it has been defined. Returns null if the key is not found.
+         * @throws ParseException If there is a problem getting custom data
+         */
+        public Object get(String key) {
+            if (! mJsonObject.has(KEY_CUSTOM_DATA)) {
+                return null;
+            }
+            try {
+                return mJsonObject.getJSONObject(KEY_CUSTOM_DATA).opt(key);
+            } catch (JSONException e) {
+                Log.i(TAG, "InternalProviderData get JSONException = " + e.getMessage());
+            }
+            return null;
+        }
     }
 }

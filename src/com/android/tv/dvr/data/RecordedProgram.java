@@ -28,12 +28,16 @@ import android.net.Uri;
 import android.os.Build;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import android.util.Log;
+
 import com.android.tv.common.R;
 import com.android.tv.common.TvContentRatingCache;
 import com.android.tv.common.util.CommonUtils;
 import com.android.tv.data.BaseProgram;
 import com.android.tv.data.GenreItems;
 import com.android.tv.data.InternalDataUtils;
+import com.android.tv.common.util.SystemProperties;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
@@ -44,6 +48,8 @@ import java.util.concurrent.TimeUnit;
 @TargetApi(Build.VERSION_CODES.N)
 public class RecordedProgram extends BaseProgram {
     public static final int ID_NOT_SET = -1;
+    private static final String TAG = "RecordedProgram";
+    private static final boolean DEBUG = false/* || SystemProperties.USE_DEBUG_PVR.getValue()*/;
 
     public static final String[] PROJECTION = {
         // These are in exactly the order listed in RecordedPrograms
@@ -117,10 +123,11 @@ public class RecordedProgram extends BaseProgram {
                         .setInternalProviderFlag2(cursor.getInt(index++))
                         .setInternalProviderFlag3(cursor.getInt(index++))
                         .setInternalProviderFlag4(cursor.getInt(index++))
-                        .setVersionNumber(cursor.getInt(index++));
-        if (CommonUtils.isInBundledPackageSet(builder.mPackageName)) {
+                        .setVersionNumber(cursor.getInt(index++))
+                        .setInternalProviderData(cursor.getBlob(index));
+        /*if (CommonUtils.isInBundledPackageSet(builder.mPackageName)) {
             InternalDataUtils.deserializeInternalProviderData(cursor.getBlob(index), builder);
-        }
+        }*/
         return builder.build();
     }
 
@@ -172,9 +179,15 @@ public class RecordedProgram extends BaseProgram {
         values.put(
                 RecordedPrograms.COLUMN_RECORDING_EXPIRE_TIME_UTC_MILLIS,
                 recordedProgram.mExpireTimeUtcMillis);
-        values.put(
+        if (recordedProgram.mInternalProviderData != null) {
+            values.put(RecordedPrograms.COLUMN_INTERNAL_PROVIDER_DATA,
+                    recordedProgram.mInternalProviderData);
+        } else {
+            values.putNull(RecordedPrograms.COLUMN_INTERNAL_PROVIDER_DATA);
+        }
+        /*values.put(
                 RecordedPrograms.COLUMN_INTERNAL_PROVIDER_DATA,
-                InternalDataUtils.serializeInternalProviderData(recordedProgram));
+                InternalDataUtils.serializeInternalProviderData(recordedProgram));*/
         values.put(
                 RecordedPrograms.COLUMN_INTERNAL_PROVIDER_FLAG1,
                 recordedProgram.mInternalProviderFlag1);
@@ -224,6 +237,7 @@ public class RecordedProgram extends BaseProgram {
         private int mInternalProviderFlag3;
         private int mInternalProviderFlag4;
         private int mVersionNumber;
+        private byte[] mInternalProviderData;
 
         public Builder setId(long id) {
             mId = id;
@@ -413,6 +427,11 @@ public class RecordedProgram extends BaseProgram {
             return this;
         }
 
+        public Builder setInternalProviderData(byte[] data) {
+            mInternalProviderData = data;
+            return this;
+        }
+
         public RecordedProgram build() {
             if (TextUtils.isEmpty(mTitle)) {
                 // If title is null, series cannot be generated for this program.
@@ -453,7 +472,8 @@ public class RecordedProgram extends BaseProgram {
                     mInternalProviderFlag2,
                     mInternalProviderFlag3,
                     mInternalProviderFlag4,
-                    mVersionNumber);
+                    mVersionNumber,
+                    mInternalProviderData);
         }
     }
 
@@ -490,7 +510,8 @@ public class RecordedProgram extends BaseProgram {
                 .setInternalProviderFlag2(orig.getInternalProviderFlag2())
                 .setInternalProviderFlag3(orig.getInternalProviderFlag3())
                 .setInternalProviderFlag4(orig.getInternalProviderFlag4())
-                .setVersionNumber(orig.getVersionNumber());
+                .setVersionNumber(orig.getVersionNumber())
+                .setInternalProviderData(orig.getRawInternalProviderData());
     }
 
     public static final Comparator<RecordedProgram> START_TIME_THEN_ID_COMPARATOR =
@@ -541,6 +562,15 @@ public class RecordedProgram extends BaseProgram {
     private final int mInternalProviderFlag4;
     private final int mVersionNumber;
 
+    //add for ucstom
+    private String mRecordFilePath;
+    private boolean mIsStorageExist;
+    private byte[] mInternalProviderData;
+
+    //define key
+    public static final String RECORD_FILE_PATH = "record_file_path";
+    public static final String RECORD_STORAGE_EXIST = "record_sotrage_exist";
+
     private RecordedProgram(
             long id,
             String packageName,
@@ -573,7 +603,8 @@ public class RecordedProgram extends BaseProgram {
             int internalProviderFlag2,
             int internalProviderFlag3,
             int internalProviderFlag4,
-            int versionNumber) {
+            int versionNumber,
+            byte[] internalProviderData) {
         mId = id;
         mPackageName = packageName;
         mInputId = inputId;
@@ -607,6 +638,7 @@ public class RecordedProgram extends BaseProgram {
         mInternalProviderFlag3 = internalProviderFlag3;
         mInternalProviderFlag4 = internalProviderFlag4;
         mVersionNumber = versionNumber;
+        mInternalProviderData = internalProviderData;
     }
 
     public String getAudioLanguage() {
@@ -785,6 +817,51 @@ public class RecordedProgram extends BaseProgram {
         return mVersionNumber;
     }
 
+    public byte[] getRawInternalProviderData() {
+        return mInternalProviderData;
+    }
+
+    public InternalDataUtils.InternalProviderData getFormatInternalProviderData() {
+        if (mInternalProviderData != null) {
+            try {
+                return new InternalDataUtils.InternalProviderData(mInternalProviderData);
+            } catch (Exception e) {
+                Log.i(TAG, "getInternalProviderData Exception " + e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    public boolean isRecordStorageExist() {
+        boolean result = false;
+        InternalDataUtils.InternalProviderData data = getFormatInternalProviderData();
+        if (data != null) {
+            Object obj = data.get(RECORD_STORAGE_EXIST);
+            if (obj != null && obj instanceof String) {
+                result = Integer.valueOf((String)obj) == 1;
+            }
+        }
+        if (DEBUG) {
+            Log.d(TAG, "isRecordStorageExist result = " + result);
+        }
+        return result;
+    }
+
+    public String getRecordFilePath() {
+        String result = null;
+        InternalDataUtils.InternalProviderData data = getFormatInternalProviderData();
+        if (data != null) {
+            Object obj = data.get(RECORD_FILE_PATH);
+            if (obj != null && obj instanceof String) {
+                result = (String)obj;
+            }
+        }
+        if (DEBUG) {
+            Log.d(TAG, "getRecordFilePath result = " + result);
+        }
+        return result;
+    }
+
     public int getVideoHeight() {
         return mVideoHeight;
     }
@@ -831,7 +908,8 @@ public class RecordedProgram extends BaseProgram {
                 && Objects.equals(mAudioLanguage, that.mAudioLanguage)
                 && Arrays.equals(mContentRatings, that.mContentRatings)
                 && Objects.equals(mPosterArtUri, that.mPosterArtUri)
-                && Objects.equals(mThumbnailUri, that.mThumbnailUri);
+                && Objects.equals(mThumbnailUri, that.mThumbnailUri)
+                && Arrays.equals(mInternalProviderData, that.mInternalProviderData);
     }
 
     /** Hashes based on the ID. */
@@ -916,6 +994,10 @@ public class RecordedProgram extends BaseProgram {
                 + mSeasonTitle
                 + ", mVersionNumber="
                 + mVersionNumber
+                + ", mRecordFilePath="
+                + getRecordFilePath()
+                + ", mIsStorageExist="
+                + isRecordStorageExist()
                 + '}';
     }
 

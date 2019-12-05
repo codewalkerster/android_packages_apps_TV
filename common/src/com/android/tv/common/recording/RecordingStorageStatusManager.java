@@ -28,8 +28,13 @@ import android.support.annotation.AnyThread;
 import android.support.annotation.IntDef;
 import android.support.annotation.WorkerThread;
 import android.util.Log;
+import android.text.TextUtils;
+import android.net.Uri;
+
 import com.android.tv.common.SoftPreconditions;
 import com.android.tv.common.feature.CommonFeatures;
+import com.android.tv.common.util.SystemProperties;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Retention;
@@ -41,7 +46,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /** Signals DVR storage status change such as plugging/unplugging. */
 public class RecordingStorageStatusManager {
     private static final String TAG = "RecordingStorageStatusManager";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_PVR.getValue();
 
     /** Minimum storage size to support DVR */
     public static final long MIN_STORAGE_SIZE_FOR_DVR_IN_BYTES = 50 * 1024 * 1024 * 1024L; // 50GB
@@ -113,27 +118,55 @@ public class RecordingStorageStatusManager {
          * @param storageMounted {@code true} when DVR possible storage is mounted, {@code false}
          *     otherwise.
          */
-        void onStorageMountChanged(boolean storageMounted);
+        void onStorageMountChanged(boolean storageMounted, String path);
     }
 
     private final class StorageStatusBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "StorageStatusBroadcastReceiver intent = " + intent);
+            String path = null;
+            boolean isMounted = true;
+            String action = null;
+            if (intent != null) {
+                Uri data = intent.getData();
+                action = intent.getAction();
+                if (data != null) {
+                    path = data.getPath();
+                    Log.d(TAG, "StorageStatusBroadcastReceiver path = " + path);
+                }
+            }
             MountedStorageStatus result = getStorageStatusInternal();
-            if (mMountedStorageStatus.equals(result)) {
+            boolean isStoragePath = isStoragePath(path);
+            if (mMountedStorageStatus.equals(result) && !isStoragePath) {
                 return;
             }
             mMountedStorageStatus = result;
-            if (result.mStorageMounted) {
+            if (result.mStorageMounted && !isStoragePath) {
                 cleanUpDbIfNeeded();
+            } else if (isStoragePath) {
+                if (Intent.ACTION_MEDIA_MOUNTED.equals(intent.getAction())) {
+                    isMounted = true;
+                    updateDbIfNeeded(isMounted, path);
+                } else if (Intent.ACTION_MEDIA_UNMOUNTED.equals(intent.getAction())/* || Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())*/) {
+                    isMounted = false;
+                    updateDbIfNeeded(isMounted, path);
+                }
             }
             boolean valid = result.isValidForDvr();
-            if (valid == mStorageValid) {
+            if (valid == mStorageValid && !isStoragePath) {
                 return;
             }
             mStorageValid = valid;
             for (OnStorageMountChangedListener l : mOnStorageMountChangedListeners) {
-                l.onStorageMountChanged(valid);
+                if (!isStoragePath) {
+                    l.onStorageMountChanged(valid, path);
+                } else {
+                    if (Intent.ACTION_MEDIA_MOUNTED.equals(intent.getAction())
+                            || Intent.ACTION_MEDIA_UNMOUNTED.equals(intent.getAction())/*Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())*/) {
+                        l.onStorageMountChanged(isMounted, path);
+                    }
+                }
             }
         }
     }
@@ -235,6 +268,9 @@ public class RecordingStorageStatusManager {
     /** APPs that want to clean up DB for recordings should override this method to do the job. */
     protected void cleanUpDbIfNeeded() {}
 
+    /** APPs that want to update DB for recordings should override this method to do the job. */
+    protected void updateDbIfNeeded(boolean needDisplay, String path) {}
+
     private MountedStorageStatus getStorageStatusInternal() {
         boolean storageMounted =
                 Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED);
@@ -251,6 +287,30 @@ public class RecordingStorageStatusManager {
                 storageMountedDir = null;
             }
         }
+        Log.d(TAG, "getStorageStatusInternal storageMounted = " + storageMounted + ", storageMountedDir = " + storageMountedDir + ", storageMountedCapacity = " + storageMountedCapacity);
         return new MountedStorageStatus(storageMounted, storageMountedDir, storageMountedCapacity);
+    }
+
+    private String getStoragePathInternal() {
+        String result = null;
+        boolean storageMounted =
+                Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED);
+        File storageMountedDir = storageMounted ? Environment.getExternalStorageDirectory() : null;
+        storageMounted = storageMounted && storageMountedDir != null;
+        if (storageMounted) {
+            result = storageMountedDir.getAbsolutePath();
+        }
+        Log.d(TAG, "getStorageStatusInternal path = " + result);
+        return result;
+    }
+
+    //judge udisk or other disk
+    private boolean isStoragePath(String path) {
+        boolean result = false;
+        String inetrnalPath = getStoragePathInternal();
+        if (!TextUtils.isEmpty(path) && !TextUtils.equals(inetrnalPath, path)) {
+            result = true;
+        }
+        return result;
     }
 }

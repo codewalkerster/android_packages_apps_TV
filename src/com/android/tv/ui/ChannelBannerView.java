@@ -70,6 +70,7 @@ import com.android.tv.util.images.ImageCache;
 import com.android.tv.util.images.ImageLoader;
 import com.android.tv.util.images.ImageLoader.ImageLoaderCallback;
 import com.android.tv.util.images.ImageLoader.LoadTvInputLogoTask;
+import com.android.tv.common.util.SystemProperties;
 
 import com.android.tv.util.TvSettings;
 import com.droidlogic.app.tv.ChannelInfo;
@@ -81,7 +82,7 @@ import com.droidlogic.app.tv.DroidLogicTvUtils;
 public class ChannelBannerView extends FrameLayout
         implements TransitionLayout, AccessibilityStateChangeListener {
     private static final String TAG = "ChannelBannerView";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_CHANNEL_UPDATE.getValue();
 
     /** Show all information at the channel banner. */
     public static final int LOCK_NONE = 0;

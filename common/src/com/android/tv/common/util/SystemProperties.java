@@ -58,6 +58,9 @@ public final class SystemProperties {
     public static final BooleanSystemProperty USE_DEBUG_LOGIC =
             new BooleanSystemProperty("tv_use_debug_logic", false);
 
+    public static final BooleanSystemProperty USE_DEBUG_PVR =
+            new BooleanSystemProperty("tv_use_debug_pvr", false);
+
     static {
         updateSystemProperties();
     }

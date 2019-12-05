@@ -31,11 +31,12 @@ import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.data.SeriesRecording;
 import com.android.tv.dvr.provider.DvrContract.Schedules;
 import com.android.tv.dvr.provider.DvrContract.SeriesRecordings;
+import com.android.tv.common.util.SystemProperties;
 
 /** A data class for one recorded contents. */
 public class DvrDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "DvrDatabaseHelper";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_PVR.getValue();
 
     private static final int DATABASE_VERSION = 18;
     private static final String DB_NAME = "dvr.db";
@@ -292,6 +293,9 @@ public class DvrDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (ScheduledRecording r : scheduledRecordings) {
+                if (DEBUG) {
+                    Log.d(TAG, "insertSchedules = " + r.toString());
+                }
                 statement.clearBindings();
                 ContentValues values = ScheduledRecording.toContentValues(r);
                 bindColumns(statement, COLUMNS_SCHEDULES, values);
@@ -310,6 +314,9 @@ public class DvrDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (ScheduledRecording r : scheduledRecordings) {
+                if (DEBUG) {
+                    Log.d(TAG, "updateSchedules = " + r.toString());
+                }
                 statement.clearBindings();
                 ContentValues values = ScheduledRecording.toContentValues(r);
                 bindColumns(statement, COLUMNS_SCHEDULES, values);
@@ -329,6 +336,9 @@ public class DvrDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (ScheduledRecording r : scheduledRecordings) {
+                if (DEBUG) {
+                    Log.d(TAG, "deleteSchedules = " + r.toString());
+                }
                 statement.clearBindings();
                 statement.bindLong(1, r.getId());
                 statement.execute();
@@ -346,6 +356,9 @@ public class DvrDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (SeriesRecording r : seriesRecordings) {
+                if (DEBUG) {
+                    Log.d(TAG, "insertSeriesRecordings = " + r.toString());
+                }
                 statement.clearBindings();
                 ContentValues values = SeriesRecording.toContentValues(r);
                 bindColumns(statement, COLUMNS_SERIES_RECORDINGS, values);
@@ -364,6 +377,9 @@ public class DvrDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (SeriesRecording r : seriesRecordings) {
+                if (DEBUG) {
+                    Log.d(TAG, "updateSeriesRecordings = " + r.toString());
+                }
                 statement.clearBindings();
                 ContentValues values = SeriesRecording.toContentValues(r);
                 bindColumns(statement, COLUMNS_SERIES_RECORDINGS, values);
@@ -383,6 +399,9 @@ public class DvrDatabaseHelper extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             for (SeriesRecording r : seriesRecordings) {
+                if (DEBUG) {
+                    Log.d(TAG, "deleteSeriesRecordings = " + r.toString());
+                }
                 statement.clearBindings();
                 statement.bindLong(1, r.getId());
                 statement.execute();

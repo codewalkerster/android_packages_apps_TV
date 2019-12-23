@@ -217,6 +217,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     private static final String BROADCAST_CHANGED_SEARCH_TYPE = "android.action.livetv.change.search.type";
     private static final String BROADCAST_SKIP_ALL_CHANNELS = "android.action.skip.all.channels";
     private static final String BROADCAST_DELETE_ALL_CHANNELS = "action.delete.all.channels";
+    private static final String SYSTEM_DIALOG_REASON_KEY = "reason";
+    private static final String SYSTEM_DIALOG_REASON_HOME_KEY = "homekey";
 
     // Tracker screen names.
     public static final String SCREEN_NAME = "Main";
@@ -250,6 +252,7 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
         SYSTEM_INTENT_FILTER.addAction(BROADCAST_CHANGED_SEARCH_TYPE);
         SYSTEM_INTENT_FILTER.addAction(BROADCAST_SKIP_ALL_CHANNELS);
         SYSTEM_INTENT_FILTER.addAction(BROADCAST_DELETE_ALL_CHANNELS);
+        SYSTEM_INTENT_FILTER.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
     }
 
     private static final int REQUEST_CODE_START_SETUP_ACTIVITY = 1;
@@ -267,7 +270,9 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
     private static final int MSG_CHANNEL_UP_PRESSED = 1001;
     private static final int MSG_TUNE_CHANNEL = 1003;
     private static final int MSG_TUNE_CHANNEL_SECOND_STAGE = 1004;
-     private static final int MSG_TUNE_TO_CEC_DEV = 1005;
+    private static final int MSG_TUNE_TO_CEC_DEV = 1005;
+    private static final int MSG_START_TV = 1006;
+    private static final int MSG_STOP_TV = 1007;
 
     private static final int TVVIEW_SET_MAIN_TIMEOUT_MS = 3000;
 
@@ -439,6 +444,12 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                         return;
                     } else {
                         mTvView.showNoDataBaseHint();
+                    }
+                    break;
+                case Intent.ACTION_CLOSE_SYSTEM_DIALOGS:
+                    String reason = intent.getStringExtra(SYSTEM_DIALOG_REASON_KEY);
+                    if (SYSTEM_DIALOG_REASON_HOME_KEY.equals(reason) && mTvView != null && mTvView.isPlaying()) {
+                        stopTvInHandler();
                     }
                     break;
             }
@@ -1318,7 +1329,8 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                 }
             }
             mParentInputIdWhenScreenOff = null;
-            startTv(mInitChannelUri);
+            //startTv(mInitChannelUri);
+            startTvInHandler(mInitChannelUri);
             mInitChannelUri = null;
         }
         // Make sure TV app has the main TV view to handle the case that TvView is used in other
@@ -1432,6 +1444,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
             channelUri = TvContract.buildChannelUri(channel.getId());
         }
         return mTvDataBaseManager.getChannelInfo(channelUri);
+    }
+
+    private void startTvInHandler(final Uri channelUri) {
+        if (mHandler != null) {
+            mHandler.removeMessages(MSG_START_TV);
+            mHandler.sendMessage(mHandler.obtainMessage(MSG_START_TV, channelUri));
+        }
     }
 
     private void startTv(Uri channelUri) {
@@ -2226,6 +2245,13 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                             }
                         });
             }
+        }
+    }
+
+    private void stopTvInHandler() {
+        if (mHandler != null) {
+            mHandler.removeMessages(MSG_STOP_TV);
+            mHandler.sendEmptyMessage(MSG_STOP_TV);
         }
     }
 
@@ -4042,13 +4068,24 @@ public class MainActivity extends Activity implements OnActionClickListener, OnP
                     mainActivity.tuneToChannel(ChannelImpl.createPassthroughChannel((String)msg.obj));
                     break;
                 case MSG_TUNE_CHANNEL:
+                    if (DEBUG) Log.d(TAG, "MSG_CHANNEL_TUNE");
                     Channel channel = (Channel) msg.obj;
                     mainActivity.tuneToChannel(channel);
-                    if (DEBUG) Log.d(TAG, "MSG_CHANNEL_TUNE");
+                    break;
                 case MSG_TUNE_CHANNEL_SECOND_STAGE:
+                    if (DEBUG) Log.d(TAG, "MSG_TUNE_CHANNEL_SECOND_STAGE");
                     Channel channel1 = (Channel) msg.obj;
                     mainActivity.tuneSecondStage(channel1, msg.arg1 == 1);
-                    if (DEBUG) Log.d(TAG, "MSG_TUNE_CHANNEL_SECOND_STAGE");
+                    break;
+                case MSG_START_TV:
+                    if (DEBUG) Log.d(TAG, "MSG_START_TV");
+                    Uri uri = (Uri) msg.obj;
+                    mainActivity.startTv(uri);
+                    break;
+                case MSG_STOP_TV:
+                    if (DEBUG) Log.d(TAG, "MSG_STOP_TV");
+                    mainActivity.stopTv();
+                    break;
                 default: // fall out
             }
         }

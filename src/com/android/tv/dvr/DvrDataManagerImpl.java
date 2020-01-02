@@ -39,6 +39,7 @@ import android.util.ArraySet;
 import android.util.Log;
 import android.util.Range;
 import android.os.StatFs;
+import android.os.Environment;
 
 import com.android.tv.TvSingletons;
 import com.android.tv.common.SoftPreconditions;
@@ -77,6 +78,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.io.File;
 
 /** DVR Data manager to handle recordings and schedules. */
 @MainThread
@@ -1162,14 +1164,32 @@ public class DvrDataManagerImpl extends BaseDvrDataManager {
         }
 
         private boolean isPathAvailable(String path) {
-            boolean result=  false;
-            if (path != null) {
+            boolean result = false;
+            if (TextUtils.isEmpty(path)) {
+                return result;
+            }
+            String volumeState = Environment.getExternalStorageState(new File(path));
+            if (TextUtils.equals(volumeState, Environment.MEDIA_MOUNTED) || isDataPathAvailable(path)) {
+                result = true;
+            }
+            if (DEBUG) {
+                Log.d(TAG, "isPathAvailable path = " + path + ", volumeState = " + volumeState + ", result = " + result);
+            }
+            return result;
+        }
+
+        private boolean isDataPathAvailable(String path) {
+            boolean result = false;
+            if (TextUtils.equals("/data/data/org.dtvkit.inputsource", path)) {
                 try {
                     StatFs statFs = new StatFs(path);
                     result = statFs.getTotalBytes() > 0;
                 } catch (Exception e) {
-                    Log.i(TAG, "isPathAvailable path removed " + path + ":" + e.getMessage());
+                    Log.i(TAG, "isDataPathAvailable Exception = " + e.getMessage());
                 }
+            }
+            if (DEBUG) {
+                Log.d(TAG, "isDataPathAvailable path = " + path + ", result = " + result);
             }
             return result;
         }

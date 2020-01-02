@@ -43,6 +43,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import java.lang.reflect.Method;
+
 /** Signals DVR storage status change such as plugging/unplugging. */
 public class RecordingStorageStatusManager {
     private static final String TAG = "RecordingStorageStatusManager";
@@ -148,7 +150,7 @@ public class RecordingStorageStatusManager {
                 if (Intent.ACTION_MEDIA_MOUNTED.equals(intent.getAction())) {
                     isMounted = true;
                     updateDbIfNeeded(isMounted, path);
-                } else if (Intent.ACTION_MEDIA_UNMOUNTED.equals(intent.getAction())/* || Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())*/) {
+                } else if (Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())) {
                     isMounted = false;
                     updateDbIfNeeded(isMounted, path);
                 }
@@ -163,7 +165,7 @@ public class RecordingStorageStatusManager {
                     l.onStorageMountChanged(valid, path);
                 } else {
                     if (Intent.ACTION_MEDIA_MOUNTED.equals(intent.getAction())
-                            || Intent.ACTION_MEDIA_UNMOUNTED.equals(intent.getAction())/*Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())*/) {
+                            || Intent.ACTION_MEDIA_EJECT.equals(intent.getAction())) {
                         l.onStorageMountChanged(isMounted, path);
                     }
                 }
@@ -311,6 +313,34 @@ public class RecordingStorageStatusManager {
         if (!TextUtils.isEmpty(path) && !TextUtils.equals(inetrnalPath, path)) {
             result = true;
         }
+        return result;
+    }
+
+    private boolean isPathAvailable(String path) {
+        boolean result = false;
+        if (TextUtils.isEmpty(path)) {
+            return result;
+        }
+        String volumeState = Environment.getExternalStorageState(new File(path));
+        if (TextUtils.equals(volumeState, Environment.MEDIA_MOUNTED)) {
+            result = true;
+        }
+        Log.d(TAG, "isPathAvailable path = " + path + ", volumeState = " + volumeState + ", result = " + result);
+        return result;
+    }
+
+    public String getCurrentProcessName() {
+        String result = null;
+        try {
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            Method method = activityThreadClass.getDeclaredMethod("currentProcessName", null);
+            Object processName = method.invoke(null);
+            result = processName.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.i(TAG, "getCurrentProcessName Exception = " + e.getMessage());
+        }
+        Log.i(TAG, "getCurrentProcessName result = " + result);
         return result;
     }
 }

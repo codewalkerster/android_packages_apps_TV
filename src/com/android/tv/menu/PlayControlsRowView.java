@@ -42,6 +42,7 @@ import com.android.tv.dvr.DvrManager;
 import com.android.tv.dvr.data.ScheduledRecording;
 import com.android.tv.dvr.ui.DvrStopRecordingFragment;
 import com.android.tv.dvr.ui.DvrStopOrContinueRecordingFragment;
+import com.android.tv.common.util.SystemProperties;
 
 import com.android.tv.dvr.ui.DvrUiHelper;
 import com.android.tv.menu.Menu.MenuShowReason;
@@ -51,6 +52,7 @@ import android.support.v17.leanback.widget.GuidedAction;
 
 public class PlayControlsRowView extends MenuRowView {
     private static final String TAG = "PlayControlsRowView";
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_TIMESHIFT.getValue();
     private static final int NORMAL_WIDTH_MAX_BUTTON_COUNT = 5;
     // Dimensions
     private final int mTimeIndicatorLeftMargin;
@@ -428,10 +430,16 @@ public class PlayControlsRowView extends MenuRowView {
     }
 
     private void initializeTimeline() {
+        if (DEBUG) {
+            printCallBackTraceIfNeeded("initializeTimeline");
+        }
         Program program = mTimeShiftManager.getProgramAt(mTimeShiftManager.getCurrentPositionMs());
         if (program == null) {
             Log.w(TAG, "initializeTimeline erro");
             return;
+        }
+        if (DEBUG) {
+            Log.d(TAG, "initializeTimeline getCurrentPositionMs = " + getTimeString(mTimeShiftManager.getCurrentPositionMs()) + ",program=" + program);
         }
         mProgramStartTimeMs = program.getStartTimeUtcMillis();
         mProgramEndTimeMs = program.getEndTimeUtcMillis();
@@ -552,6 +560,9 @@ public class PlayControlsRowView extends MenuRowView {
     }
 
     private void updateControls(boolean forceUpdate) {
+        if (DEBUG) {
+            printCallBackTraceIfNeeded("updateControls " + forceUpdate);
+        }
         if (forceUpdate || getContentsView().isShown()) {
             updateTime();
             updateProgress();
@@ -576,6 +587,9 @@ public class PlayControlsRowView extends MenuRowView {
         mTimeText.setTranslationX(currentTimePositionPixel + mTimeTextLeftMargin);
         setTextIfNeeded(mTimeText, getTimeString(currentPositionMs));
         mTimeIndicator.setTranslationX(currentTimePositionPixel + mTimeIndicatorLeftMargin);
+        if (DEBUG) {
+            Log.d(TAG, "updateTime currentPositionMs = " + getTimeString(currentPositionMs));
+        }
     }
 
     private void updateProgress() {
@@ -594,6 +608,10 @@ public class PlayControlsRowView extends MenuRowView {
                     Math.min(
                             mProgramEndTimeMs,
                             Math.max(mProgramStartTimeMs, mTimeShiftManager.getRecordEndTimeMs()));
+            if (DEBUG) {
+                Log.d(TAG, "updateProgress mProgramStartTimeMs = " + getTimeString(mProgramStartTimeMs) + ",mProgramEndTimeMs = " + getTimeString(mProgramEndTimeMs) + "\n" +
+                        ", getRecordStartTimeMs = " + getTimeString(mTimeShiftManager.getRecordStartTimeMs()) + ",getCurrentPositionMs = " + getTimeString(mTimeShiftManager.getCurrentPositionMs()) + ",getRecordEndTimeMs = " + getTimeString(mTimeShiftManager.getRecordEndTimeMs()));
+            }
             mProgress.setProgressRange(
                     progressStartTimeMs - mProgramStartTimeMs,
                     progressEndTimeMs - mProgramStartTimeMs);
@@ -612,6 +630,9 @@ public class PlayControlsRowView extends MenuRowView {
         } else {
             mProgramStartTimeText.setVisibility(View.GONE);
             mProgramEndTimeText.setVisibility(View.GONE);
+        }
+        if (DEBUG) {
+            Log.d(TAG, "updateRecTimeText mProgramStartTimeMs = " + getTimeString(mProgramStartTimeMs) + ",mProgramEndTimeMs = " + getTimeString(mProgramEndTimeMs));
         }
     }
 
@@ -746,6 +767,14 @@ public class PlayControlsRowView extends MenuRowView {
     private void setTextIfNeeded(TextView textView, String text) {
         if (!TextUtils.equals(textView.getText(), text)) {
             textView.setText(text);
+        }
+    }
+
+    private void printCallBackTraceIfNeeded(String func) {
+       if (SystemProperties.USE_DEBUG_TRACE.getValue()) {
+           RuntimeException ex = new RuntimeException(func + " is here");
+           ex.fillInStackTrace();
+           Log.d(TAG, "------", ex);
         }
     }
 }

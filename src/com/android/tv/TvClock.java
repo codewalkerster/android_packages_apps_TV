@@ -30,6 +30,7 @@ import com.droidlogic.app.tv.TvTime;
  */
 public class TvClock implements Clock {
     private static final String TAG = "TvClock";
+    private static final boolean DEBUG = false;
     private static final String PROP_SET_TVTIME_ENABLED = "persist.tv.usetvtime";
 
     private Context mContext;
@@ -62,5 +63,25 @@ public class TvClock implements Clock {
 
     public void sleep(long ms) {
         SystemClock.sleep(ms);
+    }
+
+    public long getCurrentStreamTime(boolean streamtime) {
+        long result = System.currentTimeMillis();
+        if (streamtime) {
+            result = result + getStreamTimeDiff();
+        }
+        if (DEBUG) {
+            Log.d(TAG, "getCurrentStreamTime istvstream " + streamtime + " time:" + Utils.toTimeString(result));
+        }
+        return result;
+    }
+
+    public long getStreamTimeDiff() {
+        long result = 0;
+        result = mTvTime.getDiffTime();
+        if (DEBUG) {
+            Log.d(TAG, "getStreamTimeDiff = " + result);
+        }
+        return result;
     }
 }

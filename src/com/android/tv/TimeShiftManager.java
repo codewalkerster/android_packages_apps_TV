@@ -40,6 +40,8 @@ import com.android.tv.util.AsyncDbTask;
 import com.android.tv.util.TimeShiftUtils;
 import com.android.tv.util.Utils;
 import com.android.tv.util.TvClock;
+import com.android.tv.common.util.SystemProperties;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -60,7 +62,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class TimeShiftManager {
     private static final String TAG = "TimeShiftManager";
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false || SystemProperties.USE_DEBUG_TIMESHIFT.getValue();
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({PLAY_STATUS_PAUSED, PLAY_STATUS_PLAYING})
@@ -493,6 +495,9 @@ public class TimeShiftManager {
             // Guard just in case when the program prefetch handler doesn't work on time.
             mProgramManager.addDummyProgramsAt(timeMs);
             program = mProgramManager.getProgramAt(timeMs);
+            Log.d(TAG, "getProgramAt Dummy program = " + program);
+        } else {
+            Log.d(TAG, "getProgramAt program = " + program);
         }
         return program;
     }
@@ -584,6 +589,9 @@ public class TimeShiftManager {
         private long mRecordStartTimeMs;
         private long mRecordEndTimeMs;
 
+        //need to use system time to record a absolute time stamp
+        private long mAvailablityChangedTimeMsStamp;
+
         @PlayStatus private int mPlayStatus = PLAY_STATUS_PAUSED;
         @PlaySpeed private int mDisplayedPlaySpeed = PLAY_SPEED_1X;
         @PlayDirection private int mPlayDirection = PLAY_DIRECTION_FORWARD;
@@ -616,6 +624,11 @@ public class TimeShiftManager {
 
                         @Override
                         public void onRecordStartTimeChanged(long recordStartTimeMs) {
+                            long getStreamTime = mTvClock.currentTimeMillis();
+                            if (DEBUG) {
+                                Log.d(TAG, "onRecordStartTimeChanged mAvailable = " + mAvailable + "\n,recordStartTimeMs=" + Utils.toTimeString(recordStartTimeMs) +
+                                        ",mAvailablityChangedTimeMs=" + Utils.toTimeString(mAvailablityChangedTimeMs) + ", getStreamTime = " + Utils.toTimeString(getStreamTime));
+                            }
                             if (!SoftPreconditions.checkState(
                                     mAvailable, TAG, "Trick play is not available.")) {
                                 return;
@@ -626,12 +639,12 @@ public class TimeShiftManager {
                                         TAG,
                                         "The start time is too earlier than the time of availability: {"
                                                 + "startTime: "
-                                                + recordStartTimeMs
+                                                + Utils.toTimeString(recordStartTimeMs)
                                                 + ", availability: "
-                                                + mAvailablityChangedTimeMs);
+                                                + Utils.toTimeString(mAvailablityChangedTimeMs));
                                 return;
                             }
-                            if (recordStartTimeMs > mTvClock.currentTimeMillis()/*System.currentTimeMillis()*/) {
+                            if (recordStartTimeMs > getStreamTime/*System.currentTimeMillis()*/) {
                                 // The time reported by TvInputService might not consistent with
                                 // system
                                 // clock,, use system's current time instead.
@@ -640,10 +653,10 @@ public class TimeShiftManager {
                                         "The start time should not be earlier than the current time, "
                                                 + "reset the start time to the system's current time: {"
                                                 + "startTime: "
-                                                + recordStartTimeMs
+                                                + Utils.toTimeString(recordStartTimeMs)
                                                 + ", current time: "
-                                                + mTvClock.currentTimeMillis()/*System.currentTimeMillis()*/);
-                                recordStartTimeMs = mTvClock.currentTimeMillis();//System.currentTimeMillis();
+                                                + Utils.toTimeString(getStreamTime)/*System.currentTimeMillis()*/);
+                                recordStartTimeMs = getStreamTime;//System.currentTimeMillis();
                             }
                             if (mRecordStartTimeMs == recordStartTimeMs) {
                                 return;
@@ -690,7 +703,8 @@ public class TimeShiftManager {
             mHandler.removeMessages(MSG_GET_CURRENT_POSITION);
 
             if (mAvailable) {
-                mAvailablityChangedTimeMs = mTvClock.currentTimeMillis();//System.currentTimeMillis();
+                mAvailablityChangedTimeMsStamp = System.currentTimeMillis();
+                mAvailablityChangedTimeMs = mAvailablityChangedTimeMsStamp + mTvClock.getStreamTimeDiff();//System.currentTimeMillis();
                 mIsPlayOffsetChanged = false;
                 mRecordStartTimeMs = mAvailablityChangedTimeMs;
                 mRecordEndTimeMs = CURRENT_TIME;
@@ -699,6 +713,7 @@ public class TimeShiftManager {
                 mHandler.sendEmptyMessageDelayed(
                         MSG_GET_CURRENT_POSITION, REQUEST_CURRENT_POSITION_INTERVAL);
             } else {
+                mAvailablityChangedTimeMsStamp = INVALID_TIME;
                 mAvailablityChangedTimeMs = INVALID_TIME;
                 mIsPlayOffsetChanged = false;
                 mRecordStartTimeMs = INVALID_TIME;
@@ -708,13 +723,17 @@ public class TimeShiftManager {
             }
             TimeShiftManager.this.onAvailabilityChanged();
             mNotificationEnabled = true;
+            if (DEBUG) {
+                Log.d(TAG, "onAvailabilityChanged mAvailable=" + mAvailable + ",mRecordStartTimeMs=" + Utils.toTimeString(mRecordStartTimeMs) + ",mRecordEndTimeMs=" + Utils.toTimeString(mRecordEndTimeMs));
+            }
         }
 
         void handleGetCurrentPosition() {
+            long getStreamTime = mTvClock.currentTimeMillis();
             if (mIsPlayOffsetChanged) {
                 long currentTimeMs =
                         mRecordEndTimeMs == CURRENT_TIME
-                                ? mTvClock.currentTimeMillis()/*System.currentTimeMillis()*/
+                                ? getStreamTime/*System.currentTimeMillis()*/
                                 : mRecordEndTimeMs;
                 long currentPositionMs =
                         Math.max(
@@ -742,17 +761,28 @@ public class TimeShiftManager {
                     }
                 }
                 setCurrentPositionMs(newCurrentPositionMs);
+                if (DEBUG) {
+                    Log.d(TAG, "handleGetCurrentPosition mIsPlayOffsetChanged=" + mIsPlayOffsetChanged + "\n" +
+                            ",mRecordStartTimeMs=" + Utils.toTimeString(mRecordStartTimeMs) + ",mRecordEndTimeMs=" + Utils.toTimeString(mRecordEndTimeMs) + "\n" +
+                            ",timeShiftGetCurrentPositionMs=" + Utils.toTimeString(mTvView.timeshiftGetCurrentPositionMs()) + ",getStreamTime=" + Utils.toTimeString(getStreamTime));
+                }
             } else {
-                setCurrentPositionMs(mTvClock.currentTimeMillis()/*System.currentTimeMillis()*/);
+                setCurrentPositionMs(getStreamTime/*System.currentTimeMillis()*/);
                 TimeShiftManager.this.onCurrentPositionChanged();
+                if (DEBUG) {
+                    Log.d(TAG, "handleGetCurrentPosition getStreamTime=" + Utils.toTimeString(getStreamTime));
+                }
             }
             // Need to send message here just in case there is no or invalid response
             // for the current time position request from TIS.
             mHandler.sendEmptyMessageDelayed(
                     MSG_GET_CURRENT_POSITION, REQUEST_CURRENT_POSITION_INTERVAL);
+            //update mAvailablityChangedTimeMs as value may be wrong before time prop updates
+            mAvailablityChangedTimeMs = mAvailablityChangedTimeMsStamp + mTvClock.getStreamTimeDiff();
         }
 
         void play() {
+            Log.d(TAG, "PlayController play");
             mDisplayedPlaySpeed = PLAY_SPEED_1X;
             mPlaybackSpeed = 1;
             mPlayDirection = PLAY_DIRECTION_FORWARD;
@@ -761,6 +791,7 @@ public class TimeShiftManager {
         }
 
         void pause() {
+            Log.d(TAG, "PlayController pause");
             mDisplayedPlaySpeed = PLAY_SPEED_1X;
             mPlaybackSpeed = 1;
             mTvView.timeshiftPause();
@@ -769,6 +800,7 @@ public class TimeShiftManager {
         }
 
         void togglePlayPause() {
+            Log.d(TAG, "PlayController togglePlayPause");
             if (mPlayStatus == PLAY_STATUS_PAUSED) {
                 play();
                 mTracker.sendTimeShiftAction(TIME_SHIFT_ACTION_ID_PLAY);
@@ -779,6 +811,7 @@ public class TimeShiftManager {
         }
 
         void rewind() {
+            Log.d(TAG, "PlayController rewind");
             if (mPlayDirection == PLAY_DIRECTION_BACKWARD) {
                 increaseDisplayedPlaySpeed();
             } else {
@@ -792,6 +825,7 @@ public class TimeShiftManager {
         }
 
         void fastForward() {
+            Log.d(TAG, "PlayController fastForward");
             if (mPlayDirection == PLAY_DIRECTION_FORWARD) {
                 increaseDisplayedPlaySpeed();
             } else {
@@ -806,6 +840,7 @@ public class TimeShiftManager {
 
         /** Moves to the specified time. */
         void seekTo(long timeMs) {
+            Log.d(TAG, "PlayController seekTo = " + Utils.toTimeString(timeMs));
             mTvView.timeshiftSeekTo(
                     Math.min(
                             mRecordEndTimeMs == CURRENT_TIME
@@ -816,6 +851,7 @@ public class TimeShiftManager {
         }
 
         void onCurrentProgramChanged() {
+            Log.d(TAG, "PlayController onCurrentProgramChanged");
             // Update playback speed
             if (mDisplayedPlaySpeed == PLAY_SPEED_1X) {
                 return;
@@ -1384,12 +1420,14 @@ public class TimeShiftManager {
             if (timeMs != INVALID_TIME) {
                 TimeShiftManager.this.onCurrentPositionChanged();
             }
+            Log.d(TAG, "CurrentPositionMediator initialize mSeekRequestTimeMs = " + Utils.toTimeString(mSeekRequestTimeMs) + ", mCurrentPositionMs = " + Utils.toTimeString(mCurrentPositionMs));
         }
 
         void onSeekRequested(long seekTimeMs) {
             mSeekRequestTimeMs = mTvClock.currentTimeMillis();//System.currentTimeMillis();
             mCurrentPositionMs = seekTimeMs;
             TimeShiftManager.this.onCurrentPositionChanged();
+            Log.d(TAG, "CurrentPositionMediator onSeekRequested mSeekRequestTimeMs = " + Utils.toTimeString(mSeekRequestTimeMs) + ", mCurrentPositionMs = " + Utils.toTimeString(mCurrentPositionMs));
         }
 
         void onCurrentPositionChanged(long currentPositionMs) {
@@ -1401,6 +1439,7 @@ public class TimeShiftManager {
             long currentTimeMs = mTvClock.currentTimeMillis();//System.currentTimeMillis();
             boolean isValid = Math.abs(currentPositionMs - mCurrentPositionMs) < REQUEST_TIMEOUT_MS;
             boolean isTimeout = currentTimeMs > mSeekRequestTimeMs + REQUEST_TIMEOUT_MS;
+            Log.d(TAG, "CurrentPositionMediator onCurrentPositionChanged1 mSeekRequestTimeMs = " + Utils.toTimeString(mSeekRequestTimeMs) + ", mCurrentPositionMs = " + Utils.toTimeString(mCurrentPositionMs) + ", currentPositionMs" + Utils.toTimeString(currentPositionMs));
             if (isValid || isTimeout) {
                 initialize(currentPositionMs);
             } else {
@@ -1415,6 +1454,7 @@ public class TimeShiftManager {
                 }
                 TimeShiftManager.this.onCurrentPositionChanged();
             }
+            Log.d(TAG, "CurrentPositionMediator onCurrentPositionChanged2 mSeekRequestTimeMs = " + Utils.toTimeString(mSeekRequestTimeMs) + ", mCurrentPositionMs = " + Utils.toTimeString(mCurrentPositionMs));
         }
     }
 

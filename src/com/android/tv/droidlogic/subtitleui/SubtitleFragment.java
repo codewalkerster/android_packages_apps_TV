@@ -73,6 +73,7 @@ public class SubtitleFragment extends SideFragment {
         final boolean subswitch = getCaptionsEnabled(getMainActivity());
 
         mItems = new ArrayList<>();
+        /*
         mItems.add(new SwitchItem(getString(R.string.subtitle_teletext_switch_on),
                 getString(R.string.subtitle_teletext_switch_off)) {
             @Override
@@ -88,6 +89,7 @@ public class SubtitleFragment extends SideFragment {
                 setCaptionsEnabled(getMainActivity(), checked);
             }
         });
+        */
 
         mItems.add(new SubMenuItem(getString(R.string.side_panel_title_closed_caption),
                 null, getMainActivity().getOverlayManager().getSideFragmentManager()) {
